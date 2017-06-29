@@ -3,15 +3,18 @@
 
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
-#include <openssl/sha.h>
+//#include <openssl/sha.h>
 #include "siphash.h"
+#include "cuckoo_miner/cuckoo_miner.h"
 
 // proof-of-work parameters
-#ifndef EDGEBITS
+//#ifndef EDGEBITS
 // the main parameter is the 2-log of the graph size,
 // which is the size in bits of the node identifiers
-#define EDGEBITS 27
-#endif
+//#define EDGEBITS 27
+//#endif
+int EDGEBITS=27; //Changes to make variable in cuckoo miner lib
+
 #ifndef PROOFSIZE
 // the next most important parameter is the (even) length
 // of the cycle to be found. a minimum of 12 is recommended
@@ -54,7 +57,7 @@ const char *errstr[] = { "OK", "wrong header length", "nonce too big", "nonces n
 
 void setheader(const char *header, const u32 headerlen, siphash_keys *keys) {
   char hdrkey[32];
-  SHA256((unsigned char *)header, HEADERLEN, (unsigned char *)hdrkey);
+  SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
   setkeys(keys, hdrkey);
 }
 

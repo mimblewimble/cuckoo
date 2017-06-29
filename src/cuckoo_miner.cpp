@@ -6,17 +6,28 @@
 
 #define MAXSOLS 8
 
-int main(int argc, char **argv) {
+extern "C" int cuckoo_basic_mine(u32 edge_bits, 
+                                 char* header_data, 
+                                 int header_length, 
+                                 u32* sol_nonces){
+  EDGEBITS = edge_bits;
   int nthreads = 1;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  char header[HEADERLEN];
+  int c;
   int nonce = 0;
   int range = 1;
-  char header[HEADERLEN];
-  unsigned len;
-  int c;
+
+  assert(header_length <= sizeof(header));
 
   memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
+
+  memcpy(header, header_data, header_length);
+
+  //print_buf("Coming in is: ", (const unsigned char*) &header, header_length);
+
+  //memset(header, 0, sizeof(header));
+  /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -36,7 +47,8 @@ int main(int argc, char **argv) {
         nthreads = atoi(optarg);
         break;
     }
-  }
+  }*/
+
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
@@ -55,7 +67,8 @@ int main(int argc, char **argv) {
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header, header_length, nonce + r);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
@@ -69,9 +82,12 @@ int main(int argc, char **argv) {
     }
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
-      for (int i = 0; i < PROOFSIZE; i++)
+      for (int i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
+        sol_nonces[i] = ctx.sols[s][i]; 
+      }
       printf("\n");
+      return 1;
     }
     sumnsols += ctx.nsols;
   }
@@ -79,3 +95,4 @@ int main(int argc, char **argv) {
   printf("%d total solutions\n", sumnsols);
   return 0;
 }
+
