@@ -6,11 +6,9 @@
 
 #define MAXSOLS 8
 
-extern "C" int cuckoo_basic_mine(u32 edge_bits, 
-                                 char* header_data, 
-                                 int header_length, 
-                                 u32* sol_nonces){
-  EDGEBITS = edge_bits;
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length, 
+                           u32* sol_nonces){
   int nthreads = 1;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
   char header[HEADERLEN];

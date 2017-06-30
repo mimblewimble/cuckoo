@@ -1,6 +1,9 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2017 John Tromp
 
+#ifndef CUCKOO_H
+#define CUCKOO_H
+
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
 //#include <openssl/sha.h>
@@ -8,12 +11,11 @@
 #include "cuckoo_miner/cuckoo_miner.h"
 
 // proof-of-work parameters
-//#ifndef EDGEBITS
+#ifndef EDGEBITS
 // the main parameter is the 2-log of the graph size,
 // which is the size in bits of the node identifiers
-//#define EDGEBITS 27
-//#endif
-int EDGEBITS=27; //Changes to make variable in cuckoo miner lib
+#define EDGEBITS 27
+#endif
 
 #ifndef PROOFSIZE
 // the next most important parameter is the (even) length
@@ -94,3 +96,5 @@ int verify(edge_t nonces[PROOFSIZE], const char *header, const u32 headerlen) {
   } while (i != 0);           // must cycle back to start or we would have found branch
   return n == PROOFSIZE ? POW_OK : POW_SHORT_CYCLE;
 }
+
+#endif
