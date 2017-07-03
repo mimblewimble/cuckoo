@@ -3,18 +3,21 @@
 #include "tomato_miner.h"
 #include <unistd.h>
 
-int main(int argc, char **argv) {
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length, 
+                           u32* sol_nonces){
   int nthreads = 1;
-  bool minimalbfs = false;
-  int nparts = NUPARTS;
-  int range = 1;
-  int nonce = 0;
-  int c;
+  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
   char header[HEADERLEN];
-  unsigned len;
+  int c;
+  int nonce = 0;
+  int range = 1;
+
+  assert(header_length <= sizeof(header));
 
   memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:n:t:r:m")) != -1) {
+
+  /*while ((c = getopt (argc, argv, "h:n:t:r:m")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -37,7 +40,7 @@ int main(int argc, char **argv) {
         nthreads = atoi(optarg);
         break;
     }
-  }
+  }*/
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, SIZESHIFT, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
@@ -50,9 +53,11 @@ int main(int argc, char **argv) {
   thread_ctx *threads = (thread_ctx *)calloc(nthreads, sizeof(thread_ctx));
   assert(threads);
   cuckoo_ctx ctx(nthreads, nparts, minimalbfs);
+  
 
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header, header_length, nonce + r);
 
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;

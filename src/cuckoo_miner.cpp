@@ -22,7 +22,7 @@ extern "C" int cuckoo_call(char* header_data,
 
   memcpy(header, header_data, header_length);
 
-  //print_buf("Coming in is: ", (const unsigned char*) &header, header_length);
+  print_buf("Coming in is: ", (const unsigned char*) &header, header_length);
 
   //memset(header, 0, sizeof(header));
   /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {

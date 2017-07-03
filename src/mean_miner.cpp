@@ -5,19 +5,26 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-int main(int argc, char **argv) {
-  u32 nthreads = 1;
-  u32 ntrims   = 0;
-  u32 nonce = 0;
-  u32 range = 1;
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length, 
+                           u32* sol_nonces){
+  int nthreads = 1;
+  int ntrims   = 0;
+  char header[HEADERLEN];
+  int c;
+  int nonce = 0;
+  int range = 1;
   struct timeval time0, time1;
   u32 timems;
-  char header[HEADERLEN];
-  u32 len;
-  int c;
+
+  assert(header_length <= sizeof(header));
 
   memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:t:x:")) != -1) {
+
+  memcpy(header, header_data, header_length);
+
+  
+  /*while ((c = getopt (argc, argv, "h:m:n:r:t:x:")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -43,7 +50,7 @@ int main(int argc, char **argv) {
         nthreads = atoi(optarg);
         break;
     }
-  }
+  }*/
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
@@ -66,7 +73,8 @@ int main(int argc, char **argv) {
   u32 sumnsols = 0;
   for (u32 r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header, header_length, nonce + r);
     printf("k0 k1 %lx %lx\n", ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
     gettimeofday(&time1, 0);
