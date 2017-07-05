@@ -30,7 +30,6 @@ typedef u64 node_t;
 #include <set>
 
 // algorithm parameters
-
 #ifndef SAVEMEM_BITS
 #define SAVEMEM_BITS 6
 #endif

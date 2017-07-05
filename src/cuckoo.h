@@ -39,6 +39,12 @@ typedef u32 node_t;
 // used to mask siphash output
 #define EDGEMASK ((edge_t)NEDGES - 1)
 
+//These seem to be missing in tomato_miner.h
+//Aren't correct, need fixing
+#define SIZE NEDGES
+#define HALFSIZE NEDGES/2
+#define SIZESHIFT EDGEBITS
+
 // generate edge endpoint in cuckoo graph without partition bit
 edge_t _sipnode(siphash_keys *keys, edge_t nonce, u32 uorv) {
   return siphash24(keys, 2*nonce + uorv) & EDGEMASK;
