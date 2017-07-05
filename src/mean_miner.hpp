@@ -704,6 +704,11 @@ public:
     setheader(headernonce, len, &trimmer->sip_keys);
     nsols = 0;
   }
+  void setheadergrin(char* header, const u32 len, const u32 nce) {
+    //nonce = nce;
+    setheader(header, len, &trimmer->sip_keys);
+    nsols = 0;
+  }
   ~solver_ctx() {
     delete cuckoo;
     delete trimmer;
