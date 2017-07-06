@@ -71,7 +71,7 @@ extern "C" int cuckoo_call(char* header_data,
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header, header_length, nonce + r);
+    ctx.setheadergrin(header, sizeof(header), nonce + r);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
@@ -85,10 +85,12 @@ extern "C" int cuckoo_call(char* header_data,
     }
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
+      //just return with the first solution we get
       for (int i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
         sol_nonces[i] = ctx.sols[s][i]; 
       }
+      free(threads);
       printf("\n");
       return 1;
     }

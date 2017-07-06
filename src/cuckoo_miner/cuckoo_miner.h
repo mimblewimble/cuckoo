@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include "hash_impl.h"
 
-#define SQUASH_OUTPUT 1
+#define SQUASH_OUTPUT 0
 
 #if SQUASH_OUTPUT
 #define printf(fmt, ...) (0)

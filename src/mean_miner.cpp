@@ -79,7 +79,7 @@ extern "C" int cuckoo_call(char* header_data,
   for (u32 r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header, header_length, nonce + r);
+    ctx.setheadergrin(header, sizeof(header), nonce + r);
     printf("k0 k1 %lx %lx\n", ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
     gettimeofday(&time1, 0);
@@ -88,8 +88,11 @@ extern "C" int cuckoo_call(char* header_data,
 
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      for (u32 i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
+        sol_nonces[i] = ctx.sols[s][i];
+      }
+      return 1;
       printf("\n");
     }
     sumnsols += nsols;
