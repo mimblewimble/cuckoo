@@ -7,15 +7,20 @@
 
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length, 
+                           int ntrims,
+                           int nthreads,
                            u32* sol_nonces){
-  int nthreads = 1;
-  int ntrims   = 0;
+  
   char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
   struct timeval time0, time1;
   u32 timems;
+
+  if (ntrims<=0) ntrims==1;
+
+  assert(nthreads > 1);
 
   assert(header_length <= sizeof(header));
 
@@ -91,4 +96,26 @@ extern "C" int cuckoo_call(char* header_data,
   }
   printf("%d total solutions\n", sumnsols);
   return 0;
+}
+
+extern "C" void cuckoo_description(char * name_buf,
+                              int* name_buf_len,
+                              char *description_buf,
+                              int* description_buf_len){
+
+  int ntrims   = 0;
+  
+  //TODO: check we don't exceed lengths.. just keep it under 256 for now
+  int name_buf_len_in = *name_buf_len;
+  const char* name = "cuckoo_mean_%d\0";
+  sprintf(name_buf, name, EDGEBITS+1);
+  *name_buf_len = strlen(name);
+  
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges, using mean algorithm.\n\
+Uses %d-way siphash and %d buckets.\0";
+
+  sprintf(description_buf, desc1,     
+  PROOFSIZE, EDGEBITS+1, NSIPHASH, NBUCKETS);
+  *description_buf_len = strlen(description_buf);
+ 
 }

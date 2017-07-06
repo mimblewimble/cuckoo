@@ -7,14 +7,19 @@
 #define MAXSOLS 8
 
 extern "C" int cuckoo_call(char* header_data, 
-                           int header_length, 
+                           int header_length,
+                           int nthreads,
+                           int ntrims, 
                            u32* sol_nonces){
-  int nthreads = 1;
-  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  
   char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
+
+  if (ntrims==0) ntrims = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+
+  assert(nthreads>0);
 
   assert(header_length <= sizeof(header));
 
@@ -92,5 +97,31 @@ extern "C" int cuckoo_call(char* header_data,
   free(threads);
   printf("%d total solutions\n", sumnsols);
   return 0;
+}
+
+extern "C" void cuckoo_description(char * name_buf,
+                              int* name_buf_len,
+                              char *description_buf,
+                              int* description_buf_len){
+
+  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  
+  //TODO: check we don't exceed lengths.. just keep it under 256 for now
+  int name_buf_len_in = *name_buf_len;
+  const char* name = "cuckoo_basic_%d\0";
+  sprintf(name_buf, name, EDGEBITS+1);
+  *name_buf_len = strlen(name);
+  
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using basic algorithm.\n \
+Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
+
+  u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
+  int edgeUnit, nodeUnit;
+  for (edgeUnit=0; edgeBytes >= 1024; edgeBytes>>=10,edgeUnit++) ;
+  for (nodeUnit=0; nodeBytes >= 1024; nodeBytes>>=10,nodeUnit++) ;
+  sprintf(description_buf, desc1,     
+  PROOFSIZE, EDGEBITS+1, (int)edgeBytes, " KMGT"[edgeUnit], (int)nodeBytes, " KMGT"[nodeUnit], NSIPHASH, SIZEOF_TWICE_ATOM);
+  *description_buf_len = strlen(description_buf);
+ 
 }
 
