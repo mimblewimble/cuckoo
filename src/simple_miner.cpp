@@ -18,8 +18,8 @@ public:
   edge_t easiness;
   node_t *cuckoo;
 
-  cuckoo_ctx(const char* header, edge_t easy_ness) {
-    setheader(header, strlen(header), &sip_keys);
+  cuckoo_ctx(const char* header, int header_len, edge_t easy_ness) {
+    setheader(header, header_len, &sip_keys);
     easiness = easy_ness;
     cuckoo = (node_t *)calloc(1+NNODES, sizeof(node_t));
     assert(cuckoo != 0);
@@ -46,7 +46,7 @@ int path(node_t *cuckoo, node_t u, node_t *us) {
 
 typedef std::pair<node_t,node_t> edge;
 
-void solution(cuckoo_ctx *ctx, node_t *us, int nu, node_t *vs, int nv) {
+void solution(cuckoo_ctx *ctx, node_t *us, int nu, node_t *vs, int nv, u32* sol_nonces) {
   std::set<edge> cycle;
   unsigned n;
   cycle.insert(edge(*us, *vs));
@@ -55,17 +55,20 @@ void solution(cuckoo_ctx *ctx, node_t *us, int nu, node_t *vs, int nv) {
   while (nv--)
     cycle.insert(edge(vs[nv|1], vs[(nv+1)&~1])); // u's in odd position; v's in even
   printf("Solution");
+  int sol_nonce_index=0;
   for (edge_t nonce = n = 0; nonce < ctx->easiness; nonce++) {
     edge e(sipnode(&ctx->sip_keys, nonce, 0), sipnode(&ctx->sip_keys, nonce, 1));
     if (cycle.find(e) != cycle.end()) {
       printf(" %x", nonce);
+      sol_nonces[sol_nonce_index]=nonce;
+      sol_nonce_index++;
       cycle.erase(e);
     }
   }
   printf("\n");
 }
 
-void worker(cuckoo_ctx *ctx) {
+int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
   node_t *cuckoo = ctx->cuckoo;
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
@@ -87,8 +90,10 @@ void worker(cuckoo_ctx *ctx) {
       for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++) ;
       int len = nu + nv + 1;
       printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/ctx->easiness));
-      if (len == PROOFSIZE)
-        solution(ctx, us, nu, vs, nv);
+      if (len == PROOFSIZE) {
+        solution(ctx, us, nu, vs, nv, sol_nonces);
+        return 1;
+      }
       continue;
     }
     if (nu < nv) {
@@ -101,26 +106,41 @@ void worker(cuckoo_ctx *ctx) {
       cuckoo[v0] = u0;
     }
   }
+  return 0;
 }
 
-int main(int argc, char **argv) {
-  char header[HEADERLEN];
-  memset(header, 0, HEADERLEN);
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length,
+                           int nthreads,
+                           int ntrims, 
+                           u32* sol_nonces){
+
   int c, easipct = 50;
-  while ((c = getopt (argc, argv, "e:h:")) != -1) {
-    switch (c) {
-      case 'e':
-        easipct = atoi(optarg);
-        break;
-      case 'h':
-        memcpy(header, optarg, strlen(optarg));
-        break;
-    }
-  }
+
   assert(easipct >= 0 && easipct <= 100);
   printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n",
                PROOFSIZE, EDGEBITS+1, header, easipct);
   u64 easiness = easipct * NNODES / 100;
-  cuckoo_ctx ctx(header, easiness);
-  worker(&ctx);
+  cuckoo_ctx ctx(header_data, header_length, easiness);
+  return worker(&ctx, sol_nonces);
 }
+
+extern "C" void cuckoo_description(char * name_buf,
+                              int* name_buf_len,
+                              char *description_buf,
+                              int* description_buf_len){
+
+  //TODO: check we don't exceed lengths.. just keep it under 256 for now
+  int name_buf_len_in = *name_buf_len;
+  const char* name = "cuckoo_simple_%d\0";
+  sprintf(name_buf, name, EDGEBITS+1);
+  *name_buf_len = strlen(name);
+  
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using simple algorithm\0";
+
+  sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
+  *description_buf_len = strlen(description_buf);
+
+}
+
+

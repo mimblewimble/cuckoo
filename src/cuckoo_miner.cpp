@@ -12,7 +12,6 @@ extern "C" int cuckoo_call(char* header_data,
                            int ntrims, 
                            u32* sol_nonces){
   
-  char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
@@ -21,13 +20,9 @@ extern "C" int cuckoo_call(char* header_data,
 
   assert(nthreads>0);
 
-  assert(header_length <= sizeof(header));
+  assert(header_length <= sizeof(header_data));
 
-  memset(header, 0, sizeof(header));
-
-  memcpy(header, header_data, header_length);
-
-  print_buf("Coming in is: ", (const unsigned char*) &header, header_length);
+  print_buf("Coming in is: ", (const unsigned char*) &header_data, header_length);
 
   //memset(header, 0, sizeof(header));
   /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
@@ -71,7 +66,7 @@ extern "C" int cuckoo_call(char* header_data,
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length, nonce + r);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
@@ -110,11 +105,11 @@ extern "C" void cuckoo_description(char * name_buf,
   
   //TODO: check we don't exceed lengths.. just keep it under 256 for now
   int name_buf_len_in = *name_buf_len;
-  const char* name = "cuckoo_basic_%d\0";
+  const char* name = "cuckoo_edgetrim_%d\0";
   sprintf(name_buf, name, EDGEBITS+1);
   *name_buf_len = strlen(name);
   
-  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using basic algorithm.\n \
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using edge-trimming algorithm.\n \
 Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
 
   u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
