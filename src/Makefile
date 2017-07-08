@@ -17,6 +17,9 @@ test:	cuckoo20 verify20 Makefile
 cuckoo4:	siphash.h cuckoo.h cuckoo_miner.hpp simple_miner.cpp Makefile
 	$(GPP) -o cuckoo4 -DSHOW -DIDXSHIFT=0 -DPROOFSIZE=6 -DEDGEBITS=3 simple_miner.cpp $(LIBS)
 
+simple12:	siphash.h cuckoo.h cuckoo_miner.hpp simple_miner.cpp Makefile
+	$(GPP) -o simple12 -DIDXSHIFT=0 -DEDGEBITS=11 simple_miner.cpp $(LIBS)
+
 cuckoo6:	cuckoo.h cuckoo_miner.hpp cuckoo_miner.cpp Makefile
 	$(GPP) -o cuckoo6 -DIDXSHIFT=0 -DPROOFSIZE=6 -DLOGNBUCKETS=0 -DSHOWSOL -DEDGEBITS=5 cuckoo_miner.cpp $(LIBS)
 
@@ -28,6 +31,9 @@ cuckoo10:	siphash.h cuckoo.h cuckoo_miner.hpp cuckoo_miner.cpp Makefile
 
 cuckoo15:	siphash.h cuckoo.h cuckoo_miner.hpp cuckoo_miner.cpp Makefile
 	$(GPP) -o cuckoo15 -DATOMIC -DEDGEBITS=14 cuckoo_miner.cpp $(LIBS)
+
+cuckoo12:	siphash.h cuckoo.h cuckoo_miner.hpp cuckoo_miner.cpp Makefile
+	$(GPP) -o cuckoo12 -DATOMIC -DEDGEBITS=11 cuckoo_miner.cpp $(LIBS)
 
 cuckoo20:	siphash.h cuckoo.h cuckoo_miner.hpp cuckoo_miner.cpp Makefile
 	$(GPP) -o cuckoo20 -DATOMIC -DEDGEBITS=19 cuckoo_miner.cpp $(LIBS)

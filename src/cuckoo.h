@@ -3,20 +3,35 @@
 
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
-#include <openssl/sha.h>
+//#include <openssl/sha.h>
 #include "siphash.h"
 
+//Use own SHA256 function
+#include "cuckoo_miner/cuckoo_miner.h"
+
+#define GRIN_MOD 0
+
+#if !GRIN_MOD
 // proof-of-work parameters
 #ifndef EDGEBITS
 // the main parameter is the 2-log of the graph size,
 // which is the size in bits of the node identifiers
-#define EDGEBITS 27
+#define EDGEBITS 11
 #endif
+#else
+//Just transform above into a global for now, to minimise changes needed from
+//original
+#undef EDGEBITS
+int EDGEBITS=12;
+#endif
+
+
 #ifndef PROOFSIZE
 // the next most important parameter is the (even) length
 // of the cycle to be found. a minimum of 12 is recommended
 #define PROOFSIZE 42
 #endif
+
 
 #if EDGEBITS > 32
 typedef u64 edge_t;
@@ -54,7 +69,7 @@ const char *errstr[] = { "OK", "wrong header length", "nonce too big", "nonces n
 
 void setheader(const char *header, const u32 headerlen, siphash_keys *keys) {
   char hdrkey[32];
-  SHA256((unsigned char *)header, HEADERLEN, (unsigned char *)hdrkey);
+  SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
   setkeys(keys, hdrkey);
 }
 

@@ -18,8 +18,8 @@ public:
   edge_t easiness;
   node_t *cuckoo;
 
-  cuckoo_ctx(const char* header, edge_t easy_ness) {
-    setheader(header, strlen(header), &sip_keys);
+  cuckoo_ctx(const char* header, int header_size, edge_t easy_ness) {
+    setheader(header, header_size, &sip_keys);
     easiness = easy_ness;
     cuckoo = (node_t *)calloc(1+NNODES, sizeof(node_t));
     assert(cuckoo != 0);
@@ -104,10 +104,23 @@ void worker(cuckoo_ctx *ctx) {
 }
 
 int main(int argc, char **argv) {
-  char header[HEADERLEN];
-  memset(header, 0, HEADERLEN);
+  char header[32];
+  //Just hardcoding a header in here for the sake of example
+
+  #if GRIN_MOD == 1
+  EDGEBITS=11;
+  #endif
+
+  char *hexstring = "A6C16443FC82250B49C7FAA3876E7AB89BA687918CB00C4C10D6625E3A2E7BCC";
+  int i;
+  uint8_t str_len = strlen(hexstring);
+
+  for (i = 0; i < (str_len / 2); i++) {
+      sscanf(hexstring + 2*i, "%02x", &header[i]);
+  }
+
   int c, easipct = 50;
-  while ((c = getopt (argc, argv, "e:h:")) != -1) {
+  /*while ((c = getopt (argc, argv, "e:h:")) != -1) {
     switch (c) {
       case 'e':
         easipct = atoi(optarg);
@@ -116,11 +129,12 @@ int main(int argc, char **argv) {
         memcpy(header, optarg, strlen(optarg));
         break;
     }
-  }
+  }*/
   assert(easipct >= 0 && easipct <= 100);
   printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n",
                PROOFSIZE, EDGEBITS+1, header, easipct);
   u64 easiness = easipct * NNODES / 100;
-  cuckoo_ctx ctx(header, easiness);
+  cuckoo_ctx ctx(header, 32, easiness);
+  printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
   worker(&ctx);
 }

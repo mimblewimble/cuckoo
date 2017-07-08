@@ -7,6 +7,11 @@
 #define MAXSOLS 8
 
 int main(int argc, char **argv) {
+
+#if GRIN_MOD == 1
+  EDGEBITS=11;
+#endif
+
   int nthreads = 1;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
   int nonce = 0;
@@ -15,8 +20,23 @@ int main(int argc, char **argv) {
   unsigned len;
   int c;
 
-  memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
+  //memset(header, 0, sizeof(header));
+
+  //Just hardcoding a header in here for the sake of example
+
+  char *hexstring = "A6C16443FC82250B49C7FAA3876E7AB89BA687918CB00C4C10D6625E3A2E7BCC";
+  int i;
+  unsigned char bytearray[32];
+  uint8_t str_len = strlen(hexstring);
+
+  for (i = 0; i < (str_len / 2); i++) {
+      sscanf(hexstring + 2*i, "%02x", &bytearray[i]);
+  }
+
+  memset(header, 0, 32);
+  memcpy(header, bytearray, 32);
+
+  /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -36,7 +56,7 @@ int main(int argc, char **argv) {
         nthreads = atoi(optarg);
         break;
     }
-  }
+  }*/
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
@@ -55,7 +75,8 @@ int main(int argc, char **argv) {
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header, 32, nonce + r);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
