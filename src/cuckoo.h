@@ -67,18 +67,20 @@ const char *errstr[] = { "OK", "wrong header length", "nonce too big", "nonces n
 #define HEADERLEN 80
 #endif
 
-void setheader(const char *header, const u32 headerlen, siphash_keys *keys) {
+void setheader(unsigned char *header, const u32 headerlen, siphash_keys *keys) {
   char hdrkey[32];
   SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
   setkeys(keys, hdrkey);
 }
 
 // verify that nonces are ascending and form a cycle in header-generated graph
-int verify(edge_t nonces[PROOFSIZE], const char *header, const u32 headerlen) {
-  if (headerlen != HEADERLEN)
-    return POW_HEADER_LENGTH;
+int verify(edge_t nonces[PROOFSIZE], unsigned char *header, const u32 headerlen) {
+  //if (headerlen != HEADERLEN)
+    //return POW_HEADER_LENGTH;
   siphash_keys keys;
+
   setheader(header, headerlen, &keys);
+  printf("k0 %lx k1 %lx\n", keys.k0, keys.k1);
   node_t uvs[2*PROOFSIZE];
   node_t xor0=0,xor1=0;
   for (u32 n = 0; n < PROOFSIZE; n++) {

@@ -188,6 +188,9 @@ hashonlyx8: hash_only.cpp Makefile
 hashonlyx16: hash_only.cpp Makefile
 	$(GPP) -o hashonlyx16 -mavx2 -DNSIPHASH=16 hash_only.cpp $(LIBS)
 
+verify12:	siphash.h cuckoo.h cuckoo.c Makefile
+	$(GPP) -o verify12 -DEDGEBITS=11 cuckoo.c $(LIBS)
+
 verify28:	siphash.h cuckoo.h cuckoo.c Makefile
 	$(GPP) -o verify28 -DEDGEBITS=27 cuckoo.c $(LIBS)
 
