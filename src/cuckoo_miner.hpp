@@ -250,8 +250,8 @@ public:
     alive->clear(); // set all edges to be alive
     nsols = 0;
   }
-  void setheadergrin(char* header, const u32 len, const u32 nce) {
-    nonce = nce;
+  void setheadergrin(char* header, const u32 len) {
+    nonce = 0;
     setheader(header, len, &sip_keys);
     alive->clear();
     nsols = 0;

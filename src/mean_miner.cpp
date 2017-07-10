@@ -11,7 +11,6 @@ extern "C" int cuckoo_call(char* header_data,
                            int nthreads,
                            u32* sol_nonces){
   
-  char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
@@ -20,14 +19,7 @@ extern "C" int cuckoo_call(char* header_data,
 
   if (ntrims<=0) ntrims==1;
 
-  assert(nthreads > 1);
-
-  assert(header_length <= sizeof(header));
-
-  memset(header, 0, sizeof(header));
-
-  memcpy(header, header_data, header_length);
-
+  assert(nthreads >= 1);
   
   /*while ((c = getopt (argc, argv, "h:m:n:r:t:x:")) != -1) {
     switch (c) {
@@ -56,7 +48,7 @@ extern "C" int cuckoo_call(char* header_data,
         break;
     }
   }*/
-  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
+  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header_data, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
@@ -79,7 +71,7 @@ extern "C" int cuckoo_call(char* header_data,
   for (u32 r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length);
     printf("k0 k1 %lx %lx\n", ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
     gettimeofday(&time1, 0);
@@ -115,7 +107,7 @@ extern "C" void cuckoo_description(char * name_buf,
   *name_buf_len = strlen(name);
   
   const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges, using mean algorithm.\n\
-Uses %d-way siphash and %d buckets.\0";
+  Uses %d-way siphash and %d buckets.\0";
 
   sprintf(description_buf, desc1,     
   PROOFSIZE, EDGEBITS+1, NSIPHASH, NBUCKETS);

@@ -20,7 +20,7 @@ extern "C" int cuckoo_call(char* header_data,
 
   assert(nthreads>0);
 
-  assert(header_length <= sizeof(header_data));
+  //assert(header_length <= sizeof(header_data));
 
   print_buf("Coming in is: ", (const unsigned char*) &header_data, header_length);
 
@@ -47,7 +47,7 @@ extern "C" int cuckoo_call(char* header_data,
     }
   }*/
 
-  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
+  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header_data, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, %d trims, %d threads\n", ntrims, nthreads);
@@ -66,7 +66,7 @@ extern "C" int cuckoo_call(char* header_data,
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header_data, header_length, nonce + r);
+    ctx.setheadergrin(header_data, header_length);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
