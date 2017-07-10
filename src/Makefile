@@ -11,6 +11,8 @@ LIBS = -lssl -lcrypto
 
 all : test example cuckoo28stx8 cuckoo30stx8 cuckoo32stx8 cuckoo28 cuckoo30 cuckoo32 verify28 verify30 verify32 demo28
 
+libcuda : libcuda16 libcuda20 libcuda25 libcuda28 libcuda30
+
 test:	cuckoo20 verify20 Makefile
 	./cuckoo20 -n 13 | grep ^Sol | ./verify20 -n 13
 
@@ -199,3 +201,19 @@ SimpleMiner.class:	Cuckoo.java SimpleMiner.java Makefile
 
 java:	Cuckoo.class SimpleMiner.class Makefile
 	java SimpleMiner -h 85 | tail -1 | java Cuckoo -h 85
+
+libcuda16: cuda_miner.cu Makefile
+	nvcc -o ../../../target/debug/libcuckoo_cuda_16.so -shared --compiler-options '-fPIC' -DEDGEBITS=15 -arch sm_35 cuda_miner.cu -lssl
+
+libcuda20: cuda_miner.cu Makefile
+	nvcc -o ../../../target/debug/libcuckoo_cuda_20.so -shared --compiler-options '-fPIC' -DEDGEBITS=19 -arch sm_35 cuda_miner.cu -lssl
+
+libcuda25: cuda_miner.cu Makefile
+	nvcc -o ../../../target/debug/libcuckoo_cuda_25.so -shared --compiler-options '-fPIC' -DEDGEBITS=24 -arch sm_35 cuda_miner.cu -lssl
+
+libcuda28: cuda_miner.cu Makefile
+	nvcc -o ../../../target/debug/libcuckoo_cuda_28.so -shared --compiler-options '-fPIC' -DEDGEBITS=27 -arch sm_35 cuda_miner.cu -lssl
+
+libcuda30: cuda_miner.cu Makefile
+	nvcc -o ../../../target/debug/libcuckoo_cuda_30.so -shared --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu -lssl
+
