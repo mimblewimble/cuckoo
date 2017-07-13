@@ -38,6 +38,11 @@
 #define MAX_PROPERTY_NAME_LENGTH 64
 #define MAX_PROPERTY_DESC_LENGTH 256
 
+#define PROPERTY_RETURN_OK 0
+#define PROPERTY_RETURN_NOT_FOUND 1
+#define PROPERTY_RETURN_OUTSIDE_RANGE 2
+#define PROPERTY_RETURN_BUFFER_TOO_SMALL 3
+
 int allocated_properties=0;
 
 struct PLUGIN_PROPERTY {
@@ -68,7 +73,7 @@ int get_properties_as_json(char* prop_string, int* length){
     //minimum return is "[]\0"
     if (remaining<=3){
         //TODO: Meaningful return code
-        return -1;
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
     }
     prop_string[0]='[';
     int last_write_pos=1;
@@ -83,7 +88,7 @@ int get_properties_as_json(char* prop_string, int* length){
         //no room for anything else, comma or trailing ']'
         if (remaining<2){
             //TODO: meaningful error code
-            return -1;
+            return PROPERTY_RETURN_BUFFER_TOO_SMALL;
         }
         //write comma
         if (i<allocated_properties-1){
@@ -93,7 +98,7 @@ int get_properties_as_json(char* prop_string, int* length){
     }
     //write final characters
     if (remaining<2){
-        return -1;
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
     }
     //overwrite trailing \0
     prop_string[last_write_pos]=']';

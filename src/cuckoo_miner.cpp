@@ -11,18 +11,13 @@ int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
-                           int nthreads,
-                           int ntrims, 
                            u32* sol_nonces){
   
   int c;
   int nonce = 0;
   int range = 1;
 
-  nthreads = NUM_THREADS_PARAM;
-  ntrims = NUM_TRIMS_PARAM;
-
-  assert(nthreads>0);
+  assert(NUM_THREADS_PARAM>0);
 
   //assert(header_length <= sizeof(header_data));
 
@@ -54,7 +49,7 @@ extern "C" int cuckoo_call(char* header_data,
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header_data, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
-  printf(") with 50%% edges, %d trims, %d threads\n", ntrims, nthreads);
+  printf(") with 50%% edges, %d trims, %d threads\n", NUM_TRIMS_PARAM, NUM_THREADS_PARAM);
 
   u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
   int edgeUnit, nodeUnit;
@@ -63,22 +58,22 @@ extern "C" int cuckoo_call(char* header_data,
   printf("Using %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters\n",
      (int)edgeBytes, " KMGT"[edgeUnit], (int)nodeBytes, " KMGT"[nodeUnit], NSIPHASH, SIZEOF_TWICE_ATOM);
 
-  thread_ctx *threads = (thread_ctx *)calloc(nthreads, sizeof(thread_ctx));
+  thread_ctx *threads = (thread_ctx *)calloc(NUM_THREADS_PARAM, sizeof(thread_ctx));
   assert(threads);
-  cuckoo_ctx ctx(nthreads, ntrims, MAXSOLS);
+  cuckoo_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, MAXSOLS);
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx.setheadergrin(header_data, header_length);
     printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
-    for (int t = 0; t < nthreads; t++) {
+    for (int t = 0; t < NUM_THREADS_PARAM; t++) {
       threads[t].id = t;
       threads[t].ctx = &ctx;
       int err = pthread_create(&threads[t].thread, NULL, worker, (void *)&threads[t]);
       assert(err == 0);
     }
-    for (int t = 0; t < nthreads; t++) {
+    for (int t = 0; t < NUM_THREADS_PARAM; t++) {
       int err = pthread_join(threads[t].thread, NULL);
       assert(err == 0);
     }
@@ -111,7 +106,7 @@ extern "C" int cuckoo_init(){
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
   strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
   num_trims_prop.default_value=1 + (PART_BITS+3)*(PART_BITS+4)/2;
-  num_trims_prop.min_value=0;
+  num_trims_prop.min_value=5;
   num_trims_prop.max_value=100;
   add_plugin_property(num_trims_prop);
 
@@ -136,8 +131,6 @@ extern "C" void cuckoo_description(char * name_buf,
                               int* name_buf_len,
                               char *description_buf,
                               int* description_buf_len){
-
-  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
   
   //TODO: check we don't exceed lengths.. just keep it under 256 for now
   int name_buf_len_in = *name_buf_len;
@@ -146,7 +139,7 @@ extern "C" void cuckoo_description(char * name_buf,
   *name_buf_len = strlen(name);
   
   const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using edge-trimming algorithm.\n \
-Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
+  Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
 
   u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
   int edgeUnit, nodeUnit;
@@ -169,30 +162,35 @@ extern "C" int cuckoo_parameter_list(char *params_out_buf,
 /// Return a simple json list of parameters
 
 extern "C" int cuckoo_set_parameter(char *param_name,
-                                     int* param_name_len,
+                                     int param_name_len,
                                      int value){
   
-  if (*param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
+  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
-  snprintf(compare_buf,*param_name_len,"%s", param_name);
+  snprintf(compare_buf,param_name_len+1,"%s", param_name);
   if (strcmp(compare_buf,"NUM_TRIMS")==0){
     if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
        NUM_TRIMS_PARAM=value;
-       return 0;
+       return PROPERTY_RETURN_OK;
     } else {
-      return -1;
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
   if (strcmp(compare_buf,"NUM_THREADS")==0){
     if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
        NUM_THREADS_PARAM=value;
-       return 0;
+       return PROPERTY_RETURN_OK;
     } else {
-      return -1;
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  return -2;
-                                  
+  return PROPERTY_RETURN_NOT_FOUND;                                
+}
+
+extern "C" int cuckoo_get_parameter(char *param_name,
+                                     int param_name_len,
+                                     int* value){
+
 }
 
 

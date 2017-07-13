@@ -111,8 +111,6 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
 
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
-                           int nthreads,
-                           int ntrims, 
                            u32* sol_nonces){
 
   int c, easipct = 50;
@@ -157,6 +155,19 @@ extern "C" void cuckoo_description(char * name_buf,
 extern "C" int cuckoo_parameter_list(char *params_out_buf,
                                      int*  params_len){
     get_properties_as_json(params_out_buf, params_len);
+}
+
+extern "C" int cuckoo_set_parameter(char *param_name,
+                                     int param_name_len,
+                                     int value){
+  
+  return PROPERTY_RETURN_NOT_FOUND;                                
+}
+
+extern "C" int cuckoo_get_parameter(char *param_name,
+                                     int param_name_len,
+                                     int* value){
+
 }
 
 
