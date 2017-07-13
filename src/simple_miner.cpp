@@ -125,6 +125,15 @@ extern "C" int cuckoo_call(char* header_data,
   return worker(&ctx, sol_nonces);
 }
 
+/**
+ * Initialises all parameters, defaults, and makes them available
+ * to a caller
+ */
+
+extern "C" int cuckoo_init(){
+  
+}
+
 extern "C" void cuckoo_description(char * name_buf,
                               int* name_buf_len,
                               char *description_buf,
@@ -141,6 +150,13 @@ extern "C" void cuckoo_description(char * name_buf,
   sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
   *description_buf_len = strlen(description_buf);
 
+}
+
+/// Return a simple json list of parameters
+
+extern "C" int cuckoo_parameter_list(char *params_out_buf,
+                                     int*  params_len){
+    get_properties_as_json(params_out_buf, params_len);
 }
 
 

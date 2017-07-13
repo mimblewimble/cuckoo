@@ -6,6 +6,9 @@
 
 #define MAXSOLS 8
 
+int NUM_THREADS_PARAM=1;
+int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
+
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            int nthreads,
@@ -16,7 +19,8 @@ extern "C" int cuckoo_call(char* header_data,
   int nonce = 0;
   int range = 1;
 
-  if (ntrims==0) ntrims = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  nthreads = NUM_THREADS_PARAM;
+  ntrims = NUM_TRIMS_PARAM;
 
   assert(nthreads>0);
 
@@ -96,6 +100,38 @@ extern "C" int cuckoo_call(char* header_data,
   return 0;
 }
 
+
+/**
+ * Initialises all parameters, defaults, and makes them available
+ * to a caller
+ */
+
+extern "C" int cuckoo_init(){
+  PLUGIN_PROPERTY num_trims_prop;
+  strcpy(num_trims_prop.name,"NUM_TRIMS\0");
+  strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
+  num_trims_prop.default_value=1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  num_trims_prop.min_value=0;
+  num_trims_prop.max_value=100;
+  add_plugin_property(num_trims_prop);
+
+  NUM_TRIMS_PARAM = num_trims_prop.default_value;
+
+  PLUGIN_PROPERTY num_threads_prop;
+  strcpy(num_threads_prop.name,"NUM_THREADS\0");
+  strcpy(num_threads_prop.description,"The number of threads to use\0");
+  num_threads_prop.default_value=1;
+  num_threads_prop.min_value=1;
+  num_threads_prop.max_value=32;
+  add_plugin_property(num_threads_prop);
+
+  NUM_THREADS_PARAM = num_threads_prop.default_value;
+}
+
+/**
+ * Returns a description
+ */
+
 extern "C" void cuckoo_description(char * name_buf,
                               int* name_buf_len,
                               char *description_buf,
@@ -121,4 +157,44 @@ Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
   *description_buf_len = strlen(description_buf);
  
 }
+
+/// Return a simple json list of parameters
+
+extern "C" int cuckoo_parameter_list(char *params_out_buf,
+                                     int* params_len){
+  get_properties_as_json(params_out_buf, params_len);
+                                  
+}
+
+/// Return a simple json list of parameters
+
+extern "C" int cuckoo_set_parameter(char *param_name,
+                                     int* param_name_len,
+                                     int value){
+  
+  if (*param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
+  char compare_buf[MAX_PROPERTY_NAME_LENGTH];
+  snprintf(compare_buf,*param_name_len,"%s", param_name);
+  if (strcmp(compare_buf,"NUM_TRIMS")==0){
+    if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
+       NUM_TRIMS_PARAM=value;
+       return 0;
+    } else {
+      return -1;
+    }
+  }
+  if (strcmp(compare_buf,"NUM_THREADS")==0){
+    if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
+       NUM_THREADS_PARAM=value;
+       return 0;
+    } else {
+      return -1;
+    }
+  }
+  return -2;
+                                  
+}
+
+
+
 

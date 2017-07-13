@@ -19,6 +19,7 @@
 #define CUCKOO_MINER_H
 
 #include <stdio.h>
+#include <string.h>
 #include "hash_impl.h"
 
 #define SQUASH_OUTPUT 1
@@ -26,6 +27,85 @@
 #if SQUASH_OUTPUT
 #define printf(fmt, ...) (0)
 #endif
+
+/** 
+ * Some hardwired stuff to hold properties
+ * without dynamically allocating memory
+ * kept very simple for now
+ */
+
+#define MAX_NUM_PROPERTIES 16
+#define MAX_PROPERTY_NAME_LENGTH 64
+#define MAX_PROPERTY_DESC_LENGTH 256
+
+int allocated_properties=0;
+
+struct PLUGIN_PROPERTY {
+    char name[MAX_PROPERTY_NAME_LENGTH];
+    char description[MAX_PROPERTY_DESC_LENGTH];
+    u32 default_value;
+    u32 min_value;
+    u32 max_value;
+};
+
+PLUGIN_PROPERTY PROPS[MAX_NUM_PROPERTIES];
+
+void add_plugin_property(PLUGIN_PROPERTY new_property){
+    if (allocated_properties>MAX_NUM_PROPERTIES-1){
+        return;
+    }
+    PROPS[allocated_properties++]=new_property;
+}
+
+/*
+ * Either fills given string with properties, or returns error code
+ * if there isn't enough buffer
+ */
+
+int get_properties_as_json(char* prop_string, int* length){
+    int remaining=*length;
+    const char* property_json = "{\"name\":\"%s\",\"description\":\"%s\",\"default_value\":%d,\"min_value\":%d,\"max_value\":%d}";
+    //minimum return is "[]\0"
+    if (remaining<=3){
+        //TODO: Meaningful return code
+        return -1;
+    }
+    prop_string[0]='[';
+    int last_write_pos=1;
+    for (int i=0;i<allocated_properties;i++){
+        int last_written=snprintf(prop_string+last_write_pos, 
+                              remaining, 
+                              property_json, PROPS[i].name, 
+                              PROPS[i].description, PROPS[i].default_value,
+                              PROPS[i].min_value, PROPS[i].max_value);
+        remaining-=last_written;
+        last_write_pos+=last_written;
+        //no room for anything else, comma or trailing ']'
+        if (remaining<2){
+            //TODO: meaningful error code
+            return -1;
+        }
+        //write comma
+        if (i<allocated_properties-1){
+            //overwrite trailing \0 in this case
+            prop_string[last_write_pos++]=',';
+        } 
+    }
+    //write final characters
+    if (remaining<2){
+        return -1;
+    }
+    //overwrite trailing \0
+    prop_string[last_write_pos]=']';
+    prop_string[last_write_pos+1]='\0';
+    remaining -=2;
+    *length=(*length)-remaining+1;
+    
+    //empty set
+    if (*length==3){
+        *length=2;
+    }
+}
 
 /**
  * Replace the SHA256 function with our own, pulled from secp256k
