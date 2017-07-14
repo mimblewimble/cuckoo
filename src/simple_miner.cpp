@@ -129,7 +129,7 @@ extern "C" int cuckoo_call(char* header_data,
  */
 
 extern "C" int cuckoo_init(){
-  
+  allocated_properties=0;
 }
 
 extern "C" void cuckoo_description(char * name_buf,

@@ -102,6 +102,7 @@ extern "C" int cuckoo_call(char* header_data,
  */
 
 extern "C" int cuckoo_init(){
+  allocated_properties=0;
   PLUGIN_PROPERTY num_trims_prop;
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
   strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
