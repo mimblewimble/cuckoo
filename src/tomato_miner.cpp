@@ -3,19 +3,20 @@
 #include "tomato_miner.h"
 #include <unistd.h>
 
+int NUM_PARTS_PARAM = NUPARTS;
+int MINIMAL_BFS_PARAM = 0;
+int NUM_THREADS_PARAM = 1;
+
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length, 
                            u32* sol_nonces){
-  int nthreads = 1;
-  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+  int nthreads = NUM_THREADS_PARAM;
+  bool minimalbfs = MINIMAL_BFS_PARAM;
+  int nparts = NUM_PARTS_PARAM;
   char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
-
-  assert(header_length <= sizeof(header));
-
-  memset(header, 0, sizeof(header));
 
   /*while ((c = getopt (argc, argv, "h:n:t:r:m")) != -1) {
     switch (c) {
@@ -41,7 +42,7 @@ extern "C" int cuckoo_call(char* header_data,
         break;
     }
   }*/
-  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, SIZESHIFT, header, nonce);
+  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, 1/%d memory, %d/%d parts, %d threads %d minimalbfs\n",
@@ -57,12 +58,12 @@ extern "C" int cuckoo_call(char* header_data,
 
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header, header_length, nonce + r);
+    ctx.setheadergrin(header_data, header_length);
 
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
       threads[t].ctx = &ctx;
-      int err = pthread_create(&threads[t].thread, NULL, worker, (void *)&threads[t]);
+      int err = pthread_create(&threads[t].thread, NULL, worker, (void *)&threads[t], (void*) &sol_nonces);
       assert(err == 0);
     }
     for (int t = 0; t < nthreads; t++) {
@@ -73,3 +74,110 @@ extern "C" int cuckoo_call(char* header_data,
   free(threads);
   return 0;
 }
+
+/**
+ * Returns a description
+ */
+
+extern "C" void cuckoo_description(char * name_buf,
+                              int* name_buf_len,
+                              char *description_buf,
+                              int* description_buf_len){
+  
+  //TODO: check we don't exceed lengths.. just keep it under 256 for now
+  int name_buf_len_in = *name_buf_len;
+  const char* name = "cuckoo_tomato_%d\0";
+  sprintf(name_buf, name, EDGEBITS+1);
+  *name_buf_len = strlen(name);
+  
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using Time-Memory Tradeoff algorithm.\n";
+
+  sprintf(description_buf, desc1,     
+  PROOFSIZE, EDGEBITS+1);
+  *description_buf_len = strlen(description_buf);
+ 
+}
+
+/// Return a simple json list of parameters
+
+extern "C" int cuckoo_parameter_list(char *params_out_buf,
+                                     int* params_len){
+  get_properties_as_json(params_out_buf, params_len);
+                                  
+}
+
+extern "C" int cuckoo_init(){
+  allocated_properties=0;
+  PLUGIN_PROPERTY num_parts_prop;
+  strcpy(num_parts_prop.name,"NUM_PARTS\0");
+  strcpy(num_parts_prop.description,"The number pf parts\0");
+  num_parts_prop.default_value=NUPARTS;
+  num_parts_prop.min_value=5;
+  num_parts_prop.max_value=100;
+  add_plugin_property(num_parts_prop);
+
+  NUM_PARTS_PARAM = num_parts_prop.default_value;
+
+  PLUGIN_PROPERTY num_threads_prop;
+  strcpy(num_threads_prop.name,"NUM_THREADS\0");
+  strcpy(num_threads_prop.description,"The number of threads to use\0");
+  num_threads_prop.default_value=1;
+  num_threads_prop.min_value=1;
+  num_threads_prop.max_value=32;
+  add_plugin_property(num_threads_prop);
+
+  NUM_THREADS_PARAM = num_threads_prop.default_value;
+
+  PLUGIN_PROPERTY minimal_bfs_prop;
+  strcpy(minimal_bfs_prop.name,"MINIMAL_BFS\0");
+  strcpy(minimal_bfs_prop.description,"Minimal BFS (bool)\0");
+  minimal_bfs_prop.default_value=0;
+  minimal_bfs_prop.min_value=0;
+  minimal_bfs_prop.max_value=1;
+  add_plugin_property(minimal_bfs_prop);
+
+  MINIMAL_BFS_PARAM = minimal_bfs_prop.default_value;
+}
+
+/// Return a simple json list of parameters
+
+extern "C" int cuckoo_set_parameter(char *param_name,
+                                     int param_name_len,
+                                     int value){
+  
+  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
+  char compare_buf[MAX_PROPERTY_NAME_LENGTH];
+  snprintf(compare_buf,param_name_len+1,"%s", param_name);
+  if (strcmp(compare_buf,"NUM_PARTS")==0){
+    if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
+       NUM_PARTS_PARAM=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"NUM_THREADS")==0){
+    if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
+       NUM_THREADS_PARAM=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"MINIMAL_BFS")==0){
+    if (value>=PROPS[2].min_value && value<=PROPS[2].max_value){
+       MINIMAL_BFS_PARAM=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  return PROPERTY_RETURN_NOT_FOUND;                                
+}
+
+extern "C" int cuckoo_get_parameter(char *param_name,
+                                     int param_name_len,
+                                     int* value){
+
+}
+

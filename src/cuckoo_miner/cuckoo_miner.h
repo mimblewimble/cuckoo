@@ -104,7 +104,7 @@ int get_properties_as_json(char* prop_string, int* length){
     prop_string[last_write_pos]=']';
     prop_string[last_write_pos+1]='\0';
     remaining -=2;
-    *length=(*length)-remaining+1;
+    *length=last_write_pos+1;
     
     //empty set
     if (*length==3){
