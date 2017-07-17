@@ -282,8 +282,8 @@ extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            u32* sol_nonces){
   int nthreads = NUM_THREADS_PARAM;
-  int trims   = 32;
-  int tpb = NUM_TRIMS_PARAM;
+  int trims   = NUM_TRIMS_PARAM;
+  int tpb = 0;
   int nonce = 0;
   int range = 1;
   /*int c;
