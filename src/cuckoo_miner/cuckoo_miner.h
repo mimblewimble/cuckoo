@@ -110,6 +110,7 @@ int get_properties_as_json(char* prop_string, int* length){
     if (*length==3){
         *length=2;
     }
+    return PROPERTY_RETURN_OK;
 }
 
 /**

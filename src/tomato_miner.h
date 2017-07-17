@@ -225,7 +225,17 @@ u32 path(cuckoo_hash &cuckoo, node_t u, node_t *us) {
 
 typedef std::pair<node_t,node_t> edge;
 
-void solution(cuckoo_ctx *ctx, node_t *us, u32 nu, node_t *vs, u32 nv, u32* sol_nonces) {
+//A structure to hold worker arguments,
+//as it needs the solution nonce data
+//as well
+
+struct worker_args {
+  bool solution_found;
+  thread_ctx *tp;
+  u32* sol_nonces;
+};
+
+void solution(cuckoo_ctx *ctx, node_t *us, u32 nu, node_t *vs, u32 nv, worker_args* args) {
   std::set<edge> cycle;
   u32 n;
   cycle.insert(edge(*us, *vs));
@@ -233,24 +243,34 @@ void solution(cuckoo_ctx *ctx, node_t *us, u32 nu, node_t *vs, u32 nv, u32* sol_
     cycle.insert(edge(us[(nu+1)&~1], us[nu|1])); // u's in even position; v's in odd
   while (nv--)
     cycle.insert(edge(vs[nv|1], vs[(nv+1)&~1])); // u's in odd position; v's in even
+
+  //TODO: fix race condition properly, only very small chance of this
+  //occuring during a mining cycle because we're just returning the first
+  //one
+  if (args->solution_found==true){
+    return;
+  }
+
   printf("Solution: ");
   int sol_nonce_index=0;
   for (nonce_t nonce = n = 0; nonce < NEDGES; nonce++) {
     edge e(sipnode(&ctx->sip_keys, nonce, 0), sipnode(&ctx->sip_keys, nonce, 1));
     if (cycle.find(e) != cycle.end()) {
       printf("%x%c", nonce, ++n == PROOFSIZE?'\n':' ');
-      sol_nonces[sol_nonce_index]=nonce;
+      args->sol_nonces[sol_nonce_index]=nonce;
       sol_nonce_index++;
       if (PROOFSIZE > 2)
         cycle.erase(e);
     }
   }
+  args->solution_found=true;
   assert(n==PROOFSIZE);
 }
 
-void *worker(void *vp, void* sol_nonces_in) {
-  thread_ctx *tp = (thread_ctx *)vp;
-  u32* sol_nonces = (u32 *) sol_nonces_in;
+void *worker(void *vp) {
+  worker_args* wa = (worker_args*) vp;
+  thread_ctx *tp = wa->tp;
+  u32* sol_nonces = wa->sol_nonces;
   cuckoo_ctx *ctx = tp->ctx;
 
   cuckoo_hash &cuckoo = *ctx->cuckoo;
@@ -297,8 +317,8 @@ void *worker(void *vp, void* sol_nonces_in) {
           printf("% 4d-cycle found at %d:%d\n", len, tp->id, depth);
           if (len == PROOFSIZE) {
             if (depth&1)
-              solution(ctx, vs, nv, us, nu, sol_nonces);
-            else solution(ctx, us, nu, vs, nv, sol_nonces);
+              solution(ctx, vs, nv, us, nu, wa);
+            else solution(ctx, us, nu, vs, nv, wa);
             pthread_exit(NULL);
           }
           continue;

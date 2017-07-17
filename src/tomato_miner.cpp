@@ -42,7 +42,7 @@ extern "C" int cuckoo_call(char* header_data,
         break;
     }
   }*/
-  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
+  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header_data, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, 1/%d memory, %d/%d parts, %d threads %d minimalbfs\n",
@@ -55,7 +55,8 @@ extern "C" int cuckoo_call(char* header_data,
   assert(threads);
   cuckoo_ctx ctx(nthreads, nparts, minimalbfs);
   
-
+  worker_args* wa = (worker_args*) calloc(1, sizeof(worker_args));
+  wa->solution_found=false;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx.setheadergrin(header_data, header_length);
@@ -63,7 +64,11 @@ extern "C" int cuckoo_call(char* header_data,
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
       threads[t].ctx = &ctx;
-      int err = pthread_create(&threads[t].thread, NULL, worker, (void *)&threads[t], (void*) &sol_nonces);
+      
+      wa->tp = &threads[t];
+      wa->sol_nonces=sol_nonces;
+      
+      int err = pthread_create(&threads[t].thread, NULL, worker, (void*) wa);
       assert(err == 0);
     }
     for (int t = 0; t < nthreads; t++) {
@@ -71,8 +76,12 @@ extern "C" int cuckoo_call(char* header_data,
       assert(err == 0);
     }
   }
+  int solution_found=wa->solution_found;
+  printf("Solution found: %d\n",wa->solution_found);
+  printf("Freeing\n");
+  free(wa);
   free(threads);
-  return 0;
+  return solution_found;
 }
 
 /**
@@ -102,7 +111,7 @@ extern "C" void cuckoo_description(char * name_buf,
 
 extern "C" int cuckoo_parameter_list(char *params_out_buf,
                                      int* params_len){
-  get_properties_as_json(params_out_buf, params_len);
+  return get_properties_as_json(params_out_buf, params_len);
                                   
 }
 
@@ -137,6 +146,7 @@ extern "C" int cuckoo_init(){
   add_plugin_property(minimal_bfs_prop);
 
   MINIMAL_BFS_PARAM = minimal_bfs_prop.default_value;
+  return PROPERTY_RETURN_OK;
 }
 
 /// Return a simple json list of parameters
@@ -178,6 +188,6 @@ extern "C" int cuckoo_set_parameter(char *param_name,
 extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
                                      int* value){
-
+  return PROPERTY_RETURN_OK;
 }
 

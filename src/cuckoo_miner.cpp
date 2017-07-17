@@ -122,6 +122,7 @@ extern "C" int cuckoo_init(){
   add_plugin_property(num_threads_prop);
 
   NUM_THREADS_PARAM = num_threads_prop.default_value;
+  return PROPERTY_RETURN_OK;
 }
 
 /**
@@ -156,7 +157,7 @@ extern "C" void cuckoo_description(char * name_buf,
 
 extern "C" int cuckoo_parameter_list(char *params_out_buf,
                                      int* params_len){
-  get_properties_as_json(params_out_buf, params_len);
+  return get_properties_as_json(params_out_buf, params_len);
                                   
 }
 
@@ -191,7 +192,7 @@ extern "C" int cuckoo_set_parameter(char *param_name,
 extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
                                      int* value){
-
+  return PROPERTY_RETURN_OK;
 }
 
 
