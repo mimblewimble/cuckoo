@@ -3,6 +3,10 @@
 
 #include "cuckoo_miner.hpp"
 #include <unistd.h>
+#include <pthread.h>
+#ifdef __APPLE__
+#include "osx_barrier.h"
+#endif
 
 #define MAXSOLS 8
 
@@ -94,7 +98,6 @@ extern "C" int cuckoo_call(char* header_data,
   printf("%d total solutions\n", sumnsols);
   return 0;
 }
-
 
 /**
  * Initialises all parameters, defaults, and makes them available
@@ -193,6 +196,20 @@ extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
                                      int* value){
   return PROPERTY_RETURN_OK;
+}
+
+extern "C" int cuckoo_can_accept_job(){
+  return 1;
+}
+
+bool cuckoo_internal_ready_for_hash(){
+  //always when single threaded
+  return true;
+}
+
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length){
+    
+    
 }
 
 

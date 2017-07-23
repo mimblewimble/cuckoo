@@ -12,21 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Functions specific to cuckoo-miner's modifications, localising as many
-// changes as possible here to avoid diverging from the original source
+// Functions and definitions specific to cuckoo-miner's modifications, 
+// localising as many changes as possible here to avoid diverging from 
+// the original source
 
 #ifndef CUCKOO_MINER_H
 #define CUCKOO_MINER_H
 
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
+#ifdef __APPLE__
+#include "osx_barrier.h"
+#endif
+
 #include "hash_impl.h"
+#include "concurrentqueue.h"
 
 #define SQUASH_OUTPUT 1
 
 #if SQUASH_OUTPUT
 #define printf(fmt, ...) (0)
 #endif
+
+#define HASH_LENGTH 32
+int MAX_QUEUE_SIZE=1000;
 
 /** 
  * Some hardwired stuff to hold properties
@@ -132,7 +142,109 @@ static void print_buf(const char *title, const unsigned char *buf, size_t buf_le
     for(i = 0; i < buf_len; ++i)
     printf("%02X%s", buf[i],
              ( i + 1 ) % 16 == 0 ? "\r\n" : " " );
+}
 
+//use a mutex as a quit flag, to allow for manual
+//cleanup of any processing threads
+pthread_mutex_t quit_flag;
+
+int willQuit(){
+    switch(pthread_mutex_trylock(&quit_flag)){
+        case 0:
+            pthread_mutex_unlock(&quit_flag);
+            return 1;
+        case EBUSY:
+            return 0;
+    }
+    return 1;
+}
+
+typedef struct queueInput {
+    unsigned int id;
+    unsigned char hash[HASH_LENGTH];
+    //other identifiers
+} QueueInput;
+
+typedef struct queueOutput {
+    unsigned int id;
+    u32 result_nonces[42];
+    //other identifiers
+} QueueOutput;
+
+moodycamel::ConcurrentQueue<QueueInput> INPUT_QUEUE;
+moodycamel::ConcurrentQueue<QueueOutput> OUTPUT_QUEUE;
+
+extern "C" int cuckoo_is_queue_under_limit(){
+    if (INPUT_QUEUE.size_approx()<=MAX_QUEUE_SIZE){
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+extern "C" int cuckoo_push_to_input_queue(char* hash, 
+                                   int hash_length) {
+    QueueInput input;
+    memset(input.hash, 0, sizeof(input.hash));
+    assert(hash_length <= sizeof(input.hash));
+    memcpy(input.hash, hash, hash_length);
+    INPUT_QUEUE.enqueue(input);
+    return 1;
+}
+
+extern "C" int cuckoo_read_from_output_queue(u32* output){
+    QueueOutput item;
+    bool found = OUTPUT_QUEUE.try_dequeue(item);
+    if (found){
+        memcpy(output, item.result_nonces, sizeof(item.result_nonces));
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+//forward decs, these should be implemented by
+//plugins... this will just return whether
+//the plugin is ready to accept the next hash
+static bool cuckoo_internal_ready_for_hash();
+
+// and process it, placing any results on the
+// output queue
+static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length);
+
+void *cuckoo_process(void *args) {
+    printf("In cuckoo process");
+    
+    while(!willQuit()){
+        if (!cuckoo_internal_ready_for_hash()) continue;
+        QueueInput item;
+        bool found = INPUT_QUEUE.try_dequeue(item);
+        if (found){
+            cuckoo_internal_process_hash(item.hash, HASH_LENGTH);
+        }
+    }
+
+    //Cleanup everything here and bye
+}
+
+extern "C" int cuckoo_start_processing() {
+    printf("Start processing cuckoo process");
+    
+    //init mutex that will be used as stop flag
+    pthread_mutex_init(&quit_flag,NULL);
+    pthread_mutex_lock(&quit_flag);
+
+    pthread_t cuckoo_process_thread;
+    if (!pthread_create(&cuckoo_process_thread, NULL, cuckoo_process, NULL)){
+        if (pthread_detach(cuckoo_process_thread)){
+            return 1;
+        } 
+        
+    }
+}
+
+extern "C" int cuckoo_stop_processing() {
+    pthread_mutex_unlock(&quit_flag);
 }
 
 #endif //CUCKOO_MINER_H

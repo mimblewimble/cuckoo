@@ -12,6 +12,11 @@
 #define NNODES (2 * NEDGES)
 #define MAXPATHLEN 8192
 
+
+//Only going to allow one top-level worker thread here
+//only one thread writing, should get away without mutex
+bool is_working=false;
+
 class cuckoo_ctx {
 public:
   siphash_keys sip_keys;
@@ -170,5 +175,46 @@ extern "C" int cuckoo_get_parameter(char *param_name,
                                      int* value){
   return PROPERTY_RETURN_OK;
 }
+
+bool cuckoo_internal_ready_for_hash(){
+  return !is_working;
+}
+
+struct InternalWorkerArgs {
+  unsigned char* hash;
+  int hash_length;
+};
+
+void *process_internal_worker (void *vp) {
+  is_working=true;
+  InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
+  int c, easipct = 50;
+
+  assert(easipct >= 0 && easipct <= 100);
+  u64 easiness = easipct * NNODES / 100;
+  cuckoo_ctx ctx((const char*) args->hash, args->hash_length,easiness);
+  u32 response[PROOFSIZE];
+  int return_val = worker(&ctx, response);
+  if (return_val==1){
+    QueueOutput output;
+    memcpy(output.result_nonces, response, sizeof(output.result_nonces));
+    OUTPUT_QUEUE.enqueue(output);  
+  }
+  is_working=false;
+}
+
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length){
+  InternalWorkerArgs args;
+  args.hash=hash;
+  args.hash_length=hash_length;
+  pthread_t internal_worker_thread;
+    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
+        if (pthread_detach(internal_worker_thread)){
+            return 1;
+        } 
+        
+    }
+}
+
 
 

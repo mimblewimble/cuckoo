@@ -191,3 +191,15 @@ extern "C" int cuckoo_get_parameter(char *param_name,
   return PROPERTY_RETURN_OK;
 }
 
+extern "C" int cuckoo_can_accept_job(){
+  return 1;
+}
+
+bool cuckoo_internal_ready_for_hash(){
+  return false;
+}
+
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length){
+  
+}
+
