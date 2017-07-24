@@ -17,6 +17,8 @@
 //only one thread writing, should get away without mutex
 bool is_working=false;
 
+bool single_mode=true;
+
 class cuckoo_ctx {
 public:
   siphash_keys sip_keys;
@@ -78,7 +80,7 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
     //just temporary, till I get a better sense where to put this
-    if(willQuit(quit_flag)){
+    if(!single_mode&&willQuit(quit_flag)){
       is_working=false;
       return 0;
     }
@@ -191,6 +193,7 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
+  single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   int c, easipct = 50;
 
