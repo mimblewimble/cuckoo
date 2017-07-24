@@ -77,6 +77,11 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
   node_t *cuckoo = ctx->cuckoo;
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
+    //just temporary, till I get a better sense where to put this
+    if(willQuit(quit_flag)){
+      is_working=false;
+      return 0;
+    }
     node_t u0 = sipnode(&ctx->sip_keys, nonce, 0);
     if (u0 == 0) continue; // reserve 0 as nil; v0 guaranteed non-zero
     node_t v0 = sipnode(&ctx->sip_keys, nonce, 1);
@@ -181,34 +186,38 @@ bool cuckoo_internal_ready_for_hash(){
 }
 
 struct InternalWorkerArgs {
-  unsigned char* hash;
-  int hash_length;
+  unsigned char hash[32];
+  unsigned char nonce[8];
 };
 
 void *process_internal_worker (void *vp) {
-  is_working=true;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   int c, easipct = 50;
 
   assert(easipct >= 0 && easipct <= 100);
   u64 easiness = easipct * NNODES / 100;
-  cuckoo_ctx ctx((const char*) args->hash, args->hash_length,easiness);
+  cuckoo_ctx ctx((const char*) args->hash, sizeof(args->hash),easiness);
   u32 response[PROOFSIZE];
   int return_val = worker(&ctx, response);
-  if (return_val==1){
+  if (return_val==1&&!willQuit(quit_flag)){
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
+    memcpy(output.nonce, args->nonce, sizeof(output.nonce));
+    //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
   is_working=false;
 }
 
-int cuckoo_internal_process_hash(unsigned char* hash, int hash_length){
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
   InternalWorkerArgs args;
-  args.hash=hash;
-  args.hash_length=hash_length;
+  memcpy(args.hash, hash, sizeof(args.hash));
+  memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
+        //NB make sure more jobs are being blocked before calling detached,
+        //or you end up in a race condition and the same hash is submit many times
+        is_working=true;
         if (pthread_detach(internal_worker_thread)){
             return 1;
         } 

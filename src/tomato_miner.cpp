@@ -199,7 +199,7 @@ bool cuckoo_internal_ready_for_hash(){
   return false;
 }
 
-int cuckoo_internal_process_hash(unsigned char* hash, int hash_length){
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
   
 }
 

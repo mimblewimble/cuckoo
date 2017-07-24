@@ -22,6 +22,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+//Just for debug output when printf is squashed
+#include <iostream>
+
 #ifdef __APPLE__
 #include "osx_barrier.h"
 #endif
@@ -148,10 +151,10 @@ static void print_buf(const char *title, const unsigned char *buf, size_t buf_le
 //cleanup of any processing threads
 pthread_mutex_t quit_flag;
 
-int willQuit(){
-    switch(pthread_mutex_trylock(&quit_flag)){
+int willQuit(pthread_mutex_t mut){
+    switch(pthread_mutex_trylock(&mut)){
         case 0:
-            pthread_mutex_unlock(&quit_flag);
+            pthread_mutex_unlock(&mut);
             return 1;
         case EBUSY:
             return 0;
@@ -160,13 +163,13 @@ int willQuit(){
 }
 
 typedef struct queueInput {
-    unsigned int id;
+    unsigned char nonce[8];
     unsigned char hash[HASH_LENGTH];
     //other identifiers
 } QueueInput;
 
 typedef struct queueOutput {
-    unsigned int id;
+    unsigned char nonce[8];
     u32 result_nonces[42];
     //other identifiers
 } QueueOutput;
@@ -175,6 +178,7 @@ moodycamel::ConcurrentQueue<QueueInput> INPUT_QUEUE;
 moodycamel::ConcurrentQueue<QueueOutput> OUTPUT_QUEUE;
 
 extern "C" int cuckoo_is_queue_under_limit(){
+    if (willQuit(quit_flag)) return 0;
     if (INPUT_QUEUE.size_approx()<=MAX_QUEUE_SIZE){
         return 1;
     } else {
@@ -182,20 +186,25 @@ extern "C" int cuckoo_is_queue_under_limit(){
     }
 }
 
-extern "C" int cuckoo_push_to_input_queue(char* hash, 
-                                   int hash_length) {
+extern "C" int cuckoo_push_to_input_queue(unsigned char* hash, 
+                                   int hash_length,
+                                   unsigned char* nonce) {
+    if (willQuit(quit_flag)) return 0;
     QueueInput input;
     memset(input.hash, 0, sizeof(input.hash));
     assert(hash_length <= sizeof(input.hash));
     memcpy(input.hash, hash, hash_length);
+    memcpy(input.nonce, nonce, sizeof(input.nonce));
     INPUT_QUEUE.enqueue(input);
     return 1;
 }
 
-extern "C" int cuckoo_read_from_output_queue(u32* output){
+extern "C" int cuckoo_read_from_output_queue(u32* output, unsigned char* nonce){
+    if (willQuit(quit_flag)) return 0;
     QueueOutput item;
     bool found = OUTPUT_QUEUE.try_dequeue(item);
     if (found){
+        memcpy(nonce, item.nonce, sizeof(item.nonce));
         memcpy(output, item.result_nonces, sizeof(item.result_nonces));
         return 1;
     } else {
@@ -210,21 +219,27 @@ static bool cuckoo_internal_ready_for_hash();
 
 // and process it, placing any results on the
 // output queue
-static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length);
+static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce);
 
 void *cuckoo_process(void *args) {
-    printf("In cuckoo process");
     
-    while(!willQuit()){
+    while(!willQuit(quit_flag)){
         if (!cuckoo_internal_ready_for_hash()) continue;
         QueueInput item;
         bool found = INPUT_QUEUE.try_dequeue(item);
+        //std::cout<<"Queue size (approx): "<<INPUT_QUEUE.size_approx()<<std::endl;
         if (found){
-            cuckoo_internal_process_hash(item.hash, HASH_LENGTH);
+            cuckoo_internal_process_hash(item.hash, HASH_LENGTH, item.nonce);
         }
     }
 
-    //Cleanup everything here and bye
+    //empty the queues
+    QueueInput in;
+    QueueOutput out;
+    for (int i=0;i<MAX_QUEUE_SIZE;i++){
+        INPUT_QUEUE.try_dequeue(in);
+        OUTPUT_QUEUE.try_dequeue(out);
+    }
 }
 
 extern "C" int cuckoo_start_processing() {
