@@ -19,6 +19,9 @@ bool is_working=false;
 
 bool single_mode=true;
 
+//TODO: Mutex
+u32 hashes_processed_count=0;
+
 class cuckoo_ctx {
 public:
   siphash_keys sip_keys;
@@ -81,7 +84,6 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
     //just temporary, till I get a better sense where to put this
     if(!single_mode&&willQuit(quit_flag)){
-      is_working=false;
       return 0;
     }
     node_t u0 = sipnode(&ctx->sip_keys, nonce, 0);
@@ -104,6 +106,7 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
       printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/ctx->easiness));
       if (len == PROOFSIZE) {
         solution(ctx, us, nu, vs, nv, sol_nonces);
+        hashes_processed_count++;
         return 1;
       }
       continue;
@@ -118,6 +121,7 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
       cuckoo[v0] = u0;
     }
   }
+  hashes_processed_count++;
   return 0;
 }
 
@@ -183,6 +187,12 @@ extern "C" int cuckoo_get_parameter(char *param_name,
   return PROPERTY_RETURN_OK;
 }
 
+extern "C" u32 cuckoo_hashes_since_last_call(){
+    u32 return_val=hashes_processed_count;
+    hashes_processed_count=0;
+    return return_val;
+}
+
 bool cuckoo_internal_ready_for_hash(){
   return !is_working;
 }
@@ -193,6 +203,7 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
+  is_working=true;
   single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   int c, easipct = 50;
@@ -220,13 +231,13 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
         //or you end up in a race condition and the same hash is submit many times
-        is_working=true;
         if (pthread_detach(internal_worker_thread)){
             return 1;
         } 
         
     }
 }
+
 
 
 

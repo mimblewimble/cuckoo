@@ -195,6 +195,10 @@ extern "C" int cuckoo_can_accept_job(){
   return 1;
 }
 
+extern "C" u32 cuckoo_hashes_since_last_call(){
+    return 0;
+}
+
 bool cuckoo_internal_ready_for_hash(){
   return false;
 }
