@@ -83,7 +83,7 @@ int worker(cuckoo_ctx *ctx, u32* sol_nonces) {
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
     //just temporary, till I get a better sense where to put this
-    if(!single_mode&&willQuit(quit_flag)){
+    if(!single_mode && should_quit){
       return 0;
     }
     node_t u0 = sipnode(&ctx->sip_keys, nonce, 0);
@@ -203,7 +203,6 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
-  is_working=true;
   single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   int c, easipct = 50;
@@ -213,7 +212,7 @@ void *process_internal_worker (void *vp) {
   cuckoo_ctx ctx((const char*) args->hash, sizeof(args->hash),easiness);
   u32 response[PROOFSIZE];
   int return_val = worker(&ctx, response);
-  if (return_val==1&&!willQuit(quit_flag)){
+  if (return_val==1){
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
@@ -221,6 +220,7 @@ void *process_internal_worker (void *vp) {
     OUTPUT_QUEUE.enqueue(output);  
   }
   is_working=false;
+  internal_processing_finished=true;
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
@@ -231,6 +231,7 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
         //or you end up in a race condition and the same hash is submit many times
+        is_working=true;
         if (pthread_detach(internal_worker_thread)){
             return 1;
         } 
