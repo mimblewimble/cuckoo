@@ -214,6 +214,7 @@ static bool cuckoo_internal_ready_for_hash();
 static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce);
 
 void *cuckoo_process(void *args) {
+    should_quit=false;
     while(!should_quit){
         if (!cuckoo_internal_ready_for_hash()) continue;
         QueueInput item;
@@ -240,12 +241,11 @@ extern "C" int cuckoo_start_processing() {
     printf("Start processing cuckoo process");
 
     //prevent further runs until the previous processing run is finished, if any
-    while(!internal_processing_finished){};      
-    while(!processing_finished){};
-
-    should_quit=false;
-    processing_finished=false;
-    internal_processing_finished=false;
+    //while(!internal_processing_finished){};      
+    //while(!processing_finished){};
+    //should_quit=false;
+    //processing_finished=false;
+    //internal_processing_finished=false;
 
     pthread_t cuckoo_process_thread;
     if (!pthread_create(&cuckoo_process_thread, NULL, cuckoo_process, NULL)){
@@ -257,7 +257,7 @@ extern "C" int cuckoo_start_processing() {
 }
 
 extern "C" int cuckoo_stop_processing() {
-    should_quit=true;
+    should_quit=true;    
 }
 
 #endif //CUCKOO_MINER_H

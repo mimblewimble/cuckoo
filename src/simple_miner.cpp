@@ -228,10 +228,11 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   memcpy(args.hash, hash, sizeof(args.hash));
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
+  is_working=true;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
         //or you end up in a race condition and the same hash is submit many times
-        is_working=true;
+ 
         if (pthread_detach(internal_worker_thread)){
             return 1;
         } 
