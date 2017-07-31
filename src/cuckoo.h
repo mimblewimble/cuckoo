@@ -59,11 +59,6 @@ node_t sipnode(siphash_keys *keys, edge_t nonce, u32 uorv) {
 enum verify_code { POW_OK, POW_HEADER_LENGTH, POW_TOO_BIG, POW_TOO_SMALL, POW_NON_MATCHING, POW_BRANCH, POW_DEAD_END, POW_SHORT_CYCLE};
 const char *errstr[] = { "OK", "wrong header length", "nonce too big", "nonces not ascending", "endpoints don't match up", "branch in cycle", "cycle dead ends", "cycle too short"};
 
-// length of header hashed into siphash key
-#ifndef HEADERLEN
-#define HEADERLEN 80
-#endif
-
 // verify that nonces are ascending and form a cycle in header-generated graph
 int verify(edge_t nonces[PROOFSIZE], siphash_keys *keys) {
   node_t uvs[2*PROOFSIZE];

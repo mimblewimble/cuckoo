@@ -9,6 +9,9 @@
 #endif
 
 #define MAXSOLS 8
+// arbitrary length of header hashed into siphash key
+#define HEADERLEN 80
+
 
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
