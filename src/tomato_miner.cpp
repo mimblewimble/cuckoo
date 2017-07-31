@@ -13,7 +13,6 @@ extern "C" int cuckoo_call(char* header_data,
   int nthreads = NUM_THREADS_PARAM;
   bool minimalbfs = MINIMAL_BFS_PARAM;
   int nparts = NUM_PARTS_PARAM;
-  char header[HEADERLEN];
   int c;
   int nonce = 0;
   int range = 1;
