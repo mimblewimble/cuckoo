@@ -13,6 +13,10 @@
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 
+//Only going to allow one top-level worker thread here
+//only one thread writing, should get away without mutex
+bool is_working=false;
+
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
@@ -207,12 +211,47 @@ extern "C" u32 cuckoo_hashes_since_last_call(){
 }
 
 bool cuckoo_internal_ready_for_hash(){
-  //always when single threaded
-  return true;
+  return !is_working;
+}
+
+struct InternalWorkerArgs {
+  char hash[32];
+  unsigned char nonce[8];
+};
+
+void *process_internal_worker (void *vp) {
+  single_mode=false;
+  InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
+  u32 response[PROOFSIZE];
+
+  int return_val=cuckoo_call(args->hash, sizeof(args->hash), response);
+
+  if (return_val==1){
+    QueueOutput output;
+    memcpy(output.result_nonces, response, sizeof(output.result_nonces));
+    memcpy(output.nonce, args->nonce, sizeof(output.nonce));
+    //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
+    OUTPUT_QUEUE.enqueue(output);  
+  }
+  is_working=false;
+  internal_processing_finished=true;
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
-    
+  InternalWorkerArgs args;
+  memcpy(args.hash, hash, sizeof(args.hash));
+  memcpy(args.nonce, nonce, sizeof(args.nonce));
+  pthread_t internal_worker_thread;
+  is_working=true;
+    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
+        //NB make sure more jobs are being blocked before calling detached,
+        //or you end up in a race condition and the same hash is submit many times
+ 
+        if (pthread_detach(internal_worker_thread)){
+            return 1;
+        } 
+        
+    }
     
 }
 

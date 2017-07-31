@@ -50,6 +50,8 @@ typedef u64 node_t;
 #endif
 #include <set>
 
+bool single_mode=true;
+
 // algorithm/performance parameters; assume EDGEBITS < 31
 
 const static u32 NODEBITS = EDGEBITS + 1;
@@ -415,6 +417,7 @@ void *worker(void *vp) {
   if (tp->id == 0)
     printf("initial load %d%%\n", load);
   for (u32 round=1; round <= ctx->ntrims; round++) {
+    
     if (tp->id == 0) printf("round %2d partition loads", round);
     for (u32 uorv = 0; uorv < 2; uorv++) {
       for (u32 part = 0; part <= PART_MASK; part++) {
@@ -428,6 +431,9 @@ void *worker(void *vp) {
         if (tp->id == 0) {
           u32 load = (u32)(100LL * alive->count() / CUCKOO_SIZE);
           printf(" %c%d %4d%%", "UV"[uorv], part, load);
+        }
+        if(!single_mode && should_quit){
+          pthread_exit(NULL);
         }
       }
     }
@@ -456,6 +462,9 @@ void *worker(void *vp) {
 #endif
     u64 alive64 = alive->block(block);
     for (nonce_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
+      if(!single_mode && should_quit){
+        pthread_exit(NULL);
+      }
       u32 ffs = __builtin_ffsll(alive64);
       nonce += ffs; alive64 >>= ffs;
       node_t u0=sipnode(&ctx->sip_keys, nonce, 0), v0=sipnode(&ctx->sip_keys, nonce, 1);
