@@ -17,6 +17,8 @@ int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 //only one thread writing, should get away without mutex
 bool is_working=false;
 
+u32 hashes_processed_count=0;
+
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
@@ -94,11 +96,13 @@ extern "C" int cuckoo_call(char* header_data,
       }
       free(threads);
       printf("\n");
+      hashes_processed_count++;
       return 1;
     }
     sumnsols += ctx.nsols;
   }
   free(threads);
+  hashes_processed_count++;
   printf("%d total solutions\n", sumnsols);
   return 0;
 }
@@ -207,7 +211,9 @@ extern "C" int cuckoo_can_accept_job(){
 }
 
 extern "C" u32 cuckoo_hashes_since_last_call(){
-    return 0;
+    u32 return_val=hashes_processed_count;
+    hashes_processed_count=0;
+    return return_val;
 }
 
 bool cuckoo_internal_ready_for_hash(){
