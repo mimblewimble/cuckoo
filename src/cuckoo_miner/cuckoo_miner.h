@@ -29,7 +29,6 @@
 #include "osx_barrier.h"
 #endif
 
-#include "hash_impl.h"
 #include "concurrentqueue.h"
 
 #define SQUASH_OUTPUT 1
@@ -124,17 +123,6 @@ int get_properties_as_json(char* prop_string, int* length){
         *length=2;
     }
     return PROPERTY_RETURN_OK;
-}
-
-/**
- * Replace the SHA256 function with our own, pulled from secp256k
- */
-
-void SHA256(unsigned char * in, u32 len, unsigned char* out){
-    secp256k1_sha256_t sha;
-    secp256k1_sha256_initialize(&sha);
-    secp256k1_sha256_write(&sha, in, len);
-    secp256k1_sha256_finalize(&sha, out);
 }
 
 //Handy function to keep around for debugging
