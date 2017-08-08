@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <string.h>
 #include "cuckoo.h"
-//#include <openssl/sha.h>
 
 // d(evice s)ipnode
 #if (__CUDA_ARCH__  >= 320) // redefine ROTL to use funnel shifter, 3% speed gain
@@ -198,6 +197,9 @@ public:
     }
   }
 };
+
+// arbitrary length of header hashed into siphash key
+#define HEADERLEN 80
 
 class cuckoo_ctx {
 public:
