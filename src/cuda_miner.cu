@@ -537,3 +537,60 @@ extern "C" int cuckoo_get_parameter(char *param_name,
                                      int* value){
   return 0;
 }
+
+extern "C" u32 cuckoo_hashes_since_last_call(){
+    /*u32 return_val=hashes_processed_count;
+    hashes_processed_count=0;
+    return return_val;*/
+    return 0;
+}
+
+bool cuckoo_internal_ready_for_hash(){
+  //return !is_working;
+  return false;
+}
+
+struct InternalWorkerArgs {
+  unsigned char hash[32];
+  unsigned char nonce[8];
+};
+
+void *process_internal_worker (void *vp) {
+  /*single_mode=false;
+  InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
+  int c, easipct = 50;
+
+  assert(easipct >= 0 && easipct <= 100);
+  u64 easiness = easipct * NNODES / 100;
+  cuckoo_ctx ctx((const char*) args->hash, sizeof(args->hash),easiness);
+  u32 response[PROOFSIZE];
+  int return_val = worker(&ctx, response);
+  if (return_val==1){
+    QueueOutput output;
+    memcpy(output.result_nonces, response, sizeof(output.result_nonces));
+    memcpy(output.nonce, args->nonce, sizeof(output.nonce));
+    //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
+    OUTPUT_QUEUE.enqueue(output);  
+  }
+  is_working=false;
+  internal_processing_finished=true;*/
+}
+
+int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
+  /*InternalWorkerArgs args;
+  memcpy(args.hash, hash, sizeof(args.hash));
+  memcpy(args.nonce, nonce, sizeof(args.nonce));
+  pthread_t internal_worker_thread;
+  is_working=true;
+    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
+        //NB make sure more jobs are being blocked before calling detached,
+        //or you end up in a race condition and the same hash is submit many times
+ 
+        if (pthread_detach(internal_worker_thread)){
+            return 1;
+        } 
+        
+    }*/
+}
+
+

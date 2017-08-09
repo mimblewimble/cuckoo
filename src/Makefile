@@ -205,17 +205,17 @@ java:	Cuckoo.class SimpleMiner.class Makefile
 	java SimpleMiner -h 85 | tail -1 | java Cuckoo -h 85
 
 libcuda16: cuda_miner.cu Makefile
-	nvcc -o ../../../target/debug/libcuckoo_cuda_16.so -shared --compiler-options '-fPIC' -DEDGEBITS=15 -arch sm_35 cuda_miner.cu -lssl
+	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_16.so -shared --compiler-options '-fPIC' -DEDGEBITS=15 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
 libcuda20: cuda_miner.cu Makefile
-	nvcc -o ../../../target/debug/libcuckoo_cuda_20.so -shared --compiler-options '-fPIC' -DEDGEBITS=19 -arch sm_35 cuda_miner.cu -lssl
+	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_20.so -shared --compiler-options '-fPIC' -DEDGEBITS=19 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
 libcuda25: cuda_miner.cu Makefile
-	nvcc -o ../../../target/debug/libcuckoo_cuda_25.so -shared --compiler-options '-fPIC' -DEDGEBITS=24 -arch sm_35 cuda_miner.cu -lssl
+	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_25.so -shared --compiler-options '-fPIC' -DEDGEBITS=24 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
 libcuda28: cuda_miner.cu Makefile
-	nvcc -o ../../../target/debug/libcuckoo_cuda_28.so -shared --compiler-options '-fPIC' -DEDGEBITS=27 -arch sm_35 cuda_miner.cu -lssl
+	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_28.so -shared --compiler-options '-fPIC' -DEDGEBITS=27 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
 libcuda30: cuda_miner.cu Makefile
-	nvcc -o ../../../target/debug/libcuckoo_cuda_30.so -shared --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu -lssl
+	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_30.so -shared --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
