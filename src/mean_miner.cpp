@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-int NUM_THREADS_PARAM=1;
+int NUM_THREADS_PARAM=60;
 int NUM_TRIMS_PARAM=1;
 
 extern "C" int cuckoo_call(char* header_data, 
@@ -45,7 +45,7 @@ extern "C" int cuckoo_call(char* header_data,
         range = atoi(optarg);
         break;
       case 'm':
-        ntrims = atoi(optarg);
+        ntrims = atoi(optarg) & -2; // make even as required by solve()
         break;
       case 't':
         nthreads = atoi(optarg);
@@ -66,7 +66,7 @@ extern "C" int cuckoo_call(char* header_data,
   for (tunit=0; tbytes >= 10240; tbytes>>=10,tunit++) ;
   printf("Using %d%cB bucket memory at %lx,\n", sbytes, " KMGT"[sunit], (u64)ctx.trimmer->buckets);
   printf("%dx%d%cB thread memory at %lx,\n", nthreads, tbytes, " KMGT"[tunit], (u64)ctx.trimmer->tbuckets);
-  printf("%d-way siphash, and %d buckets.\n", NSIPHASH, NBUCKETS);
+  printf("%d-way siphash, and %d buckets.\n", NSIPHASH, NX);
 
   thread_ctx *threads = (thread_ctx *)calloc(nthreads, sizeof(thread_ctx));
   assert(threads);
