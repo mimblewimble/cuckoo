@@ -451,6 +451,44 @@ extern "C" int cuckoo_call(char* header_data,
   return 0;
 }
 
+#define MAX_DEVICES 32
+u32 NUM_DEVICES=0;
+
+typedef class cudaDeviceInfo {
+  public:
+    u32 device_id;
+    bool is_busy;
+    cudaDeviceProp properties;
+
+    cudaDeviceInfo();
+} CudaDeviceInfo;
+
+cudaDeviceInfo::cudaDeviceInfo(){
+    device_id=-1;
+    is_busy=false;
+}
+
+CudaDeviceInfo DEVICE_INFO[MAX_DEVICES];
+
+void populate_device_info(){
+  int nDevices;
+
+  cudaGetDeviceCount(&nDevices);
+  for (int i = 0; i < nDevices; i++) {
+    DEVICE_INFO[i].device_id=i;
+    cudaGetDeviceProperties(&DEVICE_INFO[i].properties, i);
+    printf("Device Number: %d\n", i);
+    printf("  Device name: %s\n", DEVICE_INFO[i].properties.name);
+    printf("  Memory Clock Rate (KHz): %d\n",
+           DEVICE_INFO[i].properties.memoryClockRate);
+    printf("  Memory Bus Width (bits): %d\n",
+           DEVICE_INFO[i].properties.memoryBusWidth);
+    printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
+           2.0*DEVICE_INFO[i].properties.memoryClockRate*(DEVICE_INFO[i].properties.memoryBusWidth/8)/1.0e6);
+  }
+  NUM_DEVICES=nDevices;
+}
+
 /**
  * Initialises all parameters, defaults, and makes them available
  * to a caller
@@ -476,6 +514,8 @@ extern "C" int cuckoo_init(){
   add_plugin_property(num_threads_prop);
 
   NUM_THREADS_PARAM = num_threads_prop.default_value;
+
+  populate_device_info();
 }
 
 extern "C" void cuckoo_description(char * name_buf,
@@ -538,33 +578,49 @@ extern "C" int cuckoo_get_parameter(char *param_name,
   return 0;
 }
 
+u32 hashes_processed_count=0;
+
 extern "C" u32 cuckoo_hashes_since_last_call(){
-    /*u32 return_val=hashes_processed_count;
+    u32 return_val=hashes_processed_count;
     hashes_processed_count=0;
-    return return_val;*/
-    return 0;
+    return return_val;
+}
+
+u32 next_free_device_id(){
+    for (int i=0;i<NUM_DEVICES;i++){
+    	if (!DEVICE_INFO[i].is_busy){
+	    return i;
+	}
+    }
+    return -1;
 }
 
 bool cuckoo_internal_ready_for_hash(){
-  //return !is_working;
+  //just return okay if a device is flagged as free
+  for (int i=0;i<NUM_DEVICES;i++){
+    if (!DEVICE_INFO[i].is_busy){
+       return true;
+    }
+  }
   return false;
 }
 
 struct InternalWorkerArgs {
   unsigned char hash[32];
   unsigned char nonce[8];
+  u32 device_id;
 };
 
 void *process_internal_worker (void *vp) {
-  /*single_mode=false;
+  //single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
-  int c, easipct = 50;
 
-  assert(easipct >= 0 && easipct <= 100);
-  u64 easiness = easipct * NNODES / 100;
-  cuckoo_ctx ctx((const char*) args->hash, sizeof(args->hash),easiness);
+  //this should set the device for this thread
+  cudaSetDevice(args->device_id);
+  
   u32 response[PROOFSIZE];
-  int return_val = worker(&ctx, response);
+  int return_val=cuckoo_call((char*) args->hash, sizeof(args->hash), response);
+
   if (return_val==1){
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
@@ -572,25 +628,30 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
-  is_working=false;
-  internal_processing_finished=true;*/
+  hashes_processed_count+=1;
+  DEVICE_INFO[args->device_id].is_busy=false;
+  delete(args);
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
-  /*InternalWorkerArgs args;
-  memcpy(args.hash, hash, sizeof(args.hash));
-  memcpy(args.nonce, nonce, sizeof(args.nonce));
-  pthread_t internal_worker_thread;
-  is_working=true;
-    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
-        //NB make sure more jobs are being blocked before calling detached,
-        //or you end up in a race condition and the same hash is submit many times
- 
+    //Not entirely sure... this should select a free device, then send it to the next available
+
+    InternalWorkerArgs* args=new InternalWorkerArgs();
+    memcpy(args->hash, hash, sizeof(args->hash));
+    memcpy(args->nonce, nonce, sizeof(args->nonce));
+    u32 device_id=next_free_device_id();
+    args->device_id=device_id;
+    DEVICE_INFO[device_id].is_busy=true;
+    pthread_t internal_worker_thread;
+    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, args)){
         if (pthread_detach(internal_worker_thread)){
             return 1;
         } 
-        
-    }*/
+    }
 }
 
+//test for development, testing
+int main(){
+    cuckoo_init();
+}
 
