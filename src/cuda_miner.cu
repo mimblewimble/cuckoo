@@ -160,12 +160,10 @@ public:
   u64 *cuckoo;
 
   cuckoo_hash() {
-    std::cout<<"Creating";
     cuckoo = (u64 *)calloc(CUCKOO_SIZE, sizeof(u64));
     assert(cuckoo != 0);
   }
   ~cuckoo_hash() {
-    std::cout<<"freeing";
     free(cuckoo);
   }
   void set(node_t u, node_t v) {
