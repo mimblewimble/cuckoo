@@ -7,6 +7,9 @@
 #include <stdint.h>
 #include <string.h>
 #include "cuckoo.h"
+#include <iostream>
+
+#include "cuckoo_miner/cuckoo_miner_cuda.h"
 
 // d(evice s)ipnode
 #if (__CUDA_ARCH__  >= 320) // redefine ROTL to use funnel shifter, 3% speed gain
@@ -157,10 +160,12 @@ public:
   u64 *cuckoo;
 
   cuckoo_hash() {
+    std::cout<<"Creating";
     cuckoo = (u64 *)calloc(CUCKOO_SIZE, sizeof(u64));
     assert(cuckoo != 0);
   }
   ~cuckoo_hash() {
+    std::cout<<"freeing";
     free(cuckoo);
   }
   void set(node_t u, node_t v) {
@@ -277,9 +282,6 @@ u32 path(cuckoo_hash &cuckoo, node_t u, node_t *us) {
 typedef std::pair<node_t,node_t> edge;
 
 #include <unistd.h>
-int NUM_THREADS_PARAM=16384;
-int NUM_TRIMS_PARAM=32;
-
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
@@ -320,6 +322,8 @@ extern "C" int cuckoo_call(char* header_data,
   printf(") with 50%% edges, %d trims, %d threads %d per block\n", trims, nthreads, tpb);
 
   cuckoo_ctx ctx(nthreads);
+  cuckoo_hash* cuckoo_ptr=NULL;
+  u64 *bits;
 
   /*char headernonce[HEADERLEN];
   u32 hdrlen = strlen(header);
@@ -359,7 +363,6 @@ extern "C" int cuckoo_call(char* header_data,
       }
     }
   
-    u64 *bits;
     bits = (u64 *)calloc(NEDGES/64, sizeof(u64));
     assert(bits != 0);
     cudaMemcpy(bits, ctx.alive.bits, (NEDGES/64) * sizeof(u64), cudaMemcpyDeviceToHost);
@@ -377,15 +380,26 @@ extern "C" int cuckoo_call(char* header_data,
   
     if (load >= 90) {
       printf("overloaded! exiting...");
+      free(bits);
+      if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
+      if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
+      if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
       //TODO: Clean up?
       return 0;
     }
   
     cuckoo_hash &cuckoo = *(new cuckoo_hash());
+    cuckoo_ptr=&cuckoo;
     node_t us[MAXPATHLEN], vs[MAXPATHLEN];
     for (edge_t block = 0; block < NEDGES; block += 64) {
+      if(should_quit){
+        break;
+      }
       u64 alive64 = ~bits[block/64];
       for (edge_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
+        if(should_quit){
+           break;
+        }
         u32 ffs = __builtin_ffsll(alive64);
         nonce += ffs; alive64 >>= ffs;
         node_t u0=sipnode(&ctx.sip_keys, nonce, 0), v0=sipnode(&ctx.sip_keys, nonce, 1);
@@ -426,6 +440,8 @@ extern "C" int cuckoo_call(char* header_data,
                 }
               }
               assert(n==PROOFSIZE);
+              free(bits);
+              if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
               if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
               if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
               printf("\n");
@@ -446,212 +462,26 @@ extern "C" int cuckoo_call(char* header_data,
       }
     }
   }
+  delete cuckoo_ptr;
+  free(bits);
+  if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
   if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
   if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
   return 0;
 }
 
-#define MAX_DEVICES 32
-u32 NUM_DEVICES=0;
 
-typedef class cudaDeviceInfo {
-  public:
-    u32 device_id;
-    bool is_busy;
-    cudaDeviceProp properties;
-
-    cudaDeviceInfo();
-} CudaDeviceInfo;
-
-cudaDeviceInfo::cudaDeviceInfo(){
-    device_id=-1;
-    is_busy=false;
-}
-
-CudaDeviceInfo DEVICE_INFO[MAX_DEVICES];
-
-void populate_device_info(){
-  int nDevices;
-
-  cudaGetDeviceCount(&nDevices);
-  for (int i = 0; i < nDevices; i++) {
-    DEVICE_INFO[i].device_id=i;
-    cudaGetDeviceProperties(&DEVICE_INFO[i].properties, i);
-    printf("Device Number: %d\n", i);
-    printf("  Device name: %s\n", DEVICE_INFO[i].properties.name);
-    printf("  Memory Clock Rate (KHz): %d\n",
-           DEVICE_INFO[i].properties.memoryClockRate);
-    printf("  Memory Bus Width (bits): %d\n",
-           DEVICE_INFO[i].properties.memoryBusWidth);
-    printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
-           2.0*DEVICE_INFO[i].properties.memoryClockRate*(DEVICE_INFO[i].properties.memoryBusWidth/8)/1.0e6);
-  }
-  NUM_DEVICES=nDevices;
-}
-
-/**
- * Initialises all parameters, defaults, and makes them available
- * to a caller
- */
-
-extern "C" int cuckoo_init(){
-  PLUGIN_PROPERTY num_trims_prop;
-  strcpy(num_trims_prop.name,"NUM_TRIMS\0");
-  strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
-  num_trims_prop.default_value=32;
-  num_trims_prop.min_value=5;
-  num_trims_prop.max_value=100;
-  add_plugin_property(num_trims_prop);
-
-  NUM_TRIMS_PARAM = num_trims_prop.default_value;
-
-  PLUGIN_PROPERTY num_threads_prop;
-  strcpy(num_threads_prop.name,"NUM_THREADS\0");
-  strcpy(num_threads_prop.description,"The number of threads to use\0");
-  num_threads_prop.default_value=16384;
-  num_threads_prop.min_value=1;
-  num_threads_prop.max_value=65535;
-  add_plugin_property(num_threads_prop);
-
-  NUM_THREADS_PARAM = num_threads_prop.default_value;
-
-  populate_device_info();
-}
-
-extern "C" void cuckoo_description(char * name_buf,
-                              int* name_buf_len,
-                              char *description_buf,
-                              int* description_buf_len){
-  
-  //TODO: check we don't exceed lengths.. just keep it under 256 for now
-  const char* name = "cuckoo_cuda_%d\0";
-  sprintf(name_buf, name, EDGEBITS+1);
-  *name_buf_len = strlen(name);
-  
-  const char* desc1 = "Lookings for %d-cycle on cuckoo%d using nvidia CUDA miner\0";
-  
-  sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
-  *description_buf_len = strlen(description_buf);
- 
-}
-
-/// Return a simple json list of parameters
-
-extern "C" int cuckoo_parameter_list(char *params_out_buf,
-                                     int* params_len){
-  return get_properties_as_json(params_out_buf, params_len);
-  
-                                  
-}
-
-/// Return a simple json list of parameters
-
-extern "C" int cuckoo_set_parameter(char *param_name,
-                                     int param_name_len,
-                                     int value){
-  
-  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
-  char compare_buf[MAX_PROPERTY_NAME_LENGTH];
-  snprintf(compare_buf,param_name_len+1,"%s", param_name);
-  if (strcmp(compare_buf,"NUM_TRIMS")==0){
-    if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
-       NUM_TRIMS_PARAM=value;
-       return PROPERTY_RETURN_OK;
-    } else {
-      return PROPERTY_RETURN_OUTSIDE_RANGE;
-    }
-  }
-  if (strcmp(compare_buf,"NUM_THREADS")==0){
-    if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
-       NUM_THREADS_PARAM=value;
-       return PROPERTY_RETURN_OK;
-    } else {
-      return PROPERTY_RETURN_OUTSIDE_RANGE;
-    }
-  }
-  return PROPERTY_RETURN_NOT_FOUND;                                
-}
-
-extern "C" int cuckoo_get_parameter(char *param_name,
-                                     int param_name_len,
-                                     int* value){
-  return 0;
-}
-
-u32 hashes_processed_count=0;
-
-extern "C" u32 cuckoo_hashes_since_last_call(){
-    u32 return_val=hashes_processed_count;
-    hashes_processed_count=0;
-    return return_val;
-}
-
-u32 next_free_device_id(){
-    for (int i=0;i<NUM_DEVICES;i++){
-    	if (!DEVICE_INFO[i].is_busy){
-	    return i;
-	}
-    }
-    return -1;
-}
-
-bool cuckoo_internal_ready_for_hash(){
-  //just return okay if a device is flagged as free
-  for (int i=0;i<NUM_DEVICES;i++){
-    if (!DEVICE_INFO[i].is_busy){
-       return true;
-    }
-  }
-  return false;
-}
-
-struct InternalWorkerArgs {
-  unsigned char hash[32];
-  unsigned char nonce[8];
-  u32 device_id;
-};
-
-void *process_internal_worker (void *vp) {
-  //single_mode=false;
-  InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
-
-  //this should set the device for this thread
-  cudaSetDevice(args->device_id);
-  
-  u32 response[PROOFSIZE];
-  int return_val=cuckoo_call((char*) args->hash, sizeof(args->hash), response);
-
-  if (return_val==1){
-    QueueOutput output;
-    memcpy(output.result_nonces, response, sizeof(output.result_nonces));
-    memcpy(output.nonce, args->nonce, sizeof(output.nonce));
-    //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
-    OUTPUT_QUEUE.enqueue(output);  
-  }
-  hashes_processed_count+=1;
-  DEVICE_INFO[args->device_id].is_busy=false;
-  delete(args);
-}
-
-int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
-    //Not entirely sure... this should select a free device, then send it to the next available
-
-    InternalWorkerArgs* args=new InternalWorkerArgs();
-    memcpy(args->hash, hash, sizeof(args->hash));
-    memcpy(args->nonce, nonce, sizeof(args->nonce));
-    u32 device_id=next_free_device_id();
-    args->device_id=device_id;
-    DEVICE_INFO[device_id].is_busy=true;
-    pthread_t internal_worker_thread;
-    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, args)){
-        if (pthread_detach(internal_worker_thread)){
-            return 1;
-        } 
-    }
-}
-
-//test for development, testing
+//use for quick valgrind tests, cause valgrind against rust
+//programs doesn't work
 int main(){
-    cuckoo_init();
+  cuckoo_init();
+  char nonce[32]={0};
+  u32 sol_nonces[42]={0};
+
+  for (int i=0;i<5;i++){
+    cuckoo_call(nonce, 32, sol_nonces);
+  }
+
+
 }
 

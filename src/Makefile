@@ -220,5 +220,8 @@ libcuda28: cuda_miner.cu Makefile
 	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_28.so -shared --compiler-options '-fPIC' -DEDGEBITS=27 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
 
 libcuda30: cuda_miner.cu Makefile
-	nvcc -std=c++11 -o ../../../target/debug/libcuckoo_cuda_30.so -shared --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
-
+	nvcc -std=c++11 -g -o ../../../target/debug/libcuckoo_cuda_30.so -shared --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
+	
+libcuda30_test: cuda_miner.cu Makefile
+	nvcc -std=c++11 -g -o libcuckoo_cuda_30_test --compiler-options '-fPIC' -DEDGEBITS=29 -arch sm_35 cuda_miner.cu blake2b-ref.c -lssl
+	

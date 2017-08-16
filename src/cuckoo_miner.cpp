@@ -265,6 +265,16 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
 }
 
 
+/*
+ * returns current stats for all working devices
+ */
+
+extern "C" int cuckoo_get_stats(char* prop_string, int* length){
+	sprintf(prop_string, "[]\0");
+	*length=3;
+	return PROPERTY_RETURN_OK;
+}
+
 
 
 
