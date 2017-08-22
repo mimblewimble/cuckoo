@@ -1,8 +1,10 @@
-# -Wno-deprecated-declarations shuts up Apple OSX clang
-OPT = -O3
-DOPT = -DPREFETCH
+.POSIX:
+.SUFFIXES:
 
-FLAGS = -Wall -Wno-format -Wno-deprecated-declarations -D_POSIX_C_SOURCE=200112L $(OPT) $(DOPT) -I. $(CPPFLAGS) -pthread 
+OPT = -O3
+
+# -Wno-deprecated-declarations shuts up Apple OSX clang
+FLAGS = -Wall -Wno-format -Wno-deprecated-declarations -D_POSIX_C_SOURCE=200112L $(OPT) -DPREFETCH -I. $(CPPFLAGS) -pthread 
 GPP = g++ -march=native -m64 -std=c++11 $(FLAGS)
 CFLAGS = -Wall -Wno-format -fomit-frame-pointer $(OPT)
 GCC = gcc -m64 -std=gnu11 $(CFLAGS)
@@ -51,8 +53,11 @@ mean28x8b:	cuckoo.h siphash.h mean_miner.h mean_miner.c Makefile
 mean30x8:	cuckoo.h siphash.h mean_miner.hpp mean_miner.cpp Makefile
 	$(GPP) -o mean30x8 -mavx2 -DNSIPHASH=8 -DEDGEBITS=29 mean_miner.cpp $(LIBS)
 
-matrix:	cuckoo.h siphash.h matrix_miner.hpp matrix_miner.cpp Makefile
-	$(GPP) -o matrix -mavx2 -DNSIPHASH=8 -DEDGEBITS=29 matrix_miner.cpp $(LIBS)
+matrix28:	cuckoo.h siphash.h matrix_miner.hpp matrix_miner.cpp Makefile
+	$(GPP) -o matrix28 -mavx2 -DBIGEPS=1/8 -DTRIMFRAC256=200 -DNSIPHASH=8 -DEDGEBITS=27 matrix_miner.cpp $(LIBS)
+
+matrix30:	cuckoo.h siphash.h matrix_miner.hpp matrix_miner.cpp Makefile
+	$(GPP) -o matrix30 -mavx2 -DNSIPHASH=8 -DEDGEBITS=29 matrix_miner.cpp $(LIBS)
 
 mean30x8s:	cuckoo.h siphash.h mean_miner.hpp mean_miner.cpp Makefile
 	$(GPP) -o mean30x8s -DBIG0SIZE=4 -mavx2 -DNSIPHASH=8 -DEDGEBITS=29 mean_miner.cpp $(LIBS)

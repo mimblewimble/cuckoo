@@ -65,7 +65,7 @@ extern "C" int cuckoo_call(char* header_data,
   */
   solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, showcycle);
 
-  u32 sbytes = ctx.sharedbytes();
+  u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
   int sunit,tunit;
   for (sunit=0; sbytes >= 10240; sbytes>>=10,sunit++) ;
@@ -80,9 +80,9 @@ extern "C" int cuckoo_call(char* header_data,
   u32 sumnsols = 0;
   for (u32 r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
-    //ctx.setheadernonce(header_data, header_length, nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx.setheadergrin(header_data, header_length);
-    printf("k0 k1 %lx %lx\n", ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
+    printf("nonce %d k0 k1 %lx %lx\n", nonce+r, ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
     gettimeofday(&time1, 0);
     timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
