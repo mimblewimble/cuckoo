@@ -26,7 +26,7 @@
 #include <iostream>
 
 #ifdef __APPLE__
-#include "osx_barrier.h"
+#include "../osx_barrier.h"
 #endif
 
 #include "concurrentqueue.h"
