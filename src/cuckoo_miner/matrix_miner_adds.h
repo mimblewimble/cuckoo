@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef MATRIX_MINER_ADDS_H
+#define MATRIX_MINER_ADDS_H
+
+#include "cuckoo_miner.h"
+
 // Cuckoo plugin function implementations for matrix_miner.cpp
 
 int NUM_THREADS_PARAM=1;
@@ -189,7 +194,4 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 	return PROPERTY_RETURN_OK;
 }
 
-
-
-
-
+#endif
