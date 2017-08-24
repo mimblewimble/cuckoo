@@ -134,7 +134,7 @@ extern "C" int cuckoo_call(char* header_data,
   assert(easipct >= 0 && easipct <= 100);
   printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n",
                PROOFSIZE, EDGEBITS+1, header_data, easipct);
-  u64 easiness = easipct * NNODES / 100;
+  u64 easiness = easipct * (u64) NNODES / 100;
   cuckoo_ctx ctx(header_data, header_length, easiness);
   return worker(&ctx, sol_nonces);
 }
