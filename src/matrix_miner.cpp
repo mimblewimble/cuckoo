@@ -20,15 +20,19 @@ extern "C" int cuckoo_call(char* header_data,
 
   u32 nonce = 0;
   u32 range = 1;
-  bool showcycle = false;
   struct timeval time0, time1;
   u32 timems;
   //char header[HEADERLEN];
   //u32 len;
   //int c;
 
+<<<<<<< HEAD
   /*memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "h:m:n:r:st:x:")) != -1) {
+=======
+  memset(header, 0, sizeof(header));
+  while ((c = getopt (argc, argv, "h:m:n:r:t:x:")) != -1) {
+>>>>>>> master
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -50,9 +54,6 @@ extern "C" int cuckoo_call(char* header_data,
       case 'm':
         ntrims = atoi(optarg) & -2; // make even as required by solve()
         break;
-      case 's':
-        showcycle = true;
-        break;
       case 't':
         nthreads = atoi(optarg);
         break;
@@ -62,8 +63,13 @@ extern "C" int cuckoo_call(char* header_data,
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
+<<<<<<< HEAD
   */
   solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, showcycle);
+=======
+
+  solver_ctx ctx(nthreads, ntrims);
+>>>>>>> master
 
   u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
