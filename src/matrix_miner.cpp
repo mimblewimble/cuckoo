@@ -26,13 +26,8 @@ extern "C" int cuckoo_call(char* header_data,
   //u32 len;
   //int c;
 
-<<<<<<< HEAD
   /*memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "h:m:n:r:st:x:")) != -1) {
-=======
-  memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:t:x:")) != -1) {
->>>>>>> master
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -63,13 +58,8 @@ extern "C" int cuckoo_call(char* header_data,
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
-<<<<<<< HEAD
   */
-  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, showcycle);
-=======
-
-  solver_ctx ctx(nthreads, ntrims);
->>>>>>> master
+  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM);
 
   u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
