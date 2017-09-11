@@ -20,6 +20,11 @@ extern "C" int cuckoo_call(char* header_data,
 
   u32 nonce = 0;
   u32 range = 1;
+#ifdef SAVEEDGES
+  bool showcycle = 1;
+#else
+  bool showcycle = 0;
+#endif
   struct timeval time0, time1;
   u32 timems;
   //char header[HEADERLEN];
@@ -27,7 +32,7 @@ extern "C" int cuckoo_call(char* header_data,
   //int c;
 
   /*memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:st:x:")) != -1) {
+ while ((c = getopt (argc, argv, "h:m:n:r:st:x:")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -49,6 +54,9 @@ extern "C" int cuckoo_call(char* header_data,
       case 'm':
         ntrims = atoi(optarg) & -2; // make even as required by solve()
         break;
+      case 's':
+        showcycle = true;
+        break;
       case 't':
         nthreads = atoi(optarg);
         break;
@@ -59,9 +67,8 @@ extern "C" int cuckoo_call(char* header_data,
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
   */
-  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM);
-
-  u64 sbytes = ctx.sharedbytes();
+  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, showcycle);
+   u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
   int sunit,tunit;
   for (sunit=0; sbytes >= 10240; sbytes>>=10,sunit++) ;

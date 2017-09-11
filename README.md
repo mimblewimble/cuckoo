@@ -94,29 +94,33 @@ is used to recognise all cycles, and recover those of the right length.
 Performance
 --------------
 
-The runtime of a single proof attempt on a 4GHz i7-4790K is 2.3 minutes
-for a single-threaded cuckoo32stx8 using 768MB, or 1.1 minutes for 8 threads.
-The 16x smaller cuckoo28stx8 takes only 7.4 seconds single-threaded.
+The runtime of a single proof attempt for a 2^30 node graph on a 4GHz i7-4790K is 10.5 seconds
+with the single-threaded matrix solver, using 3200MB (or 2200MB with slower cycle recovery).
+This reduces to 3.5 seconds with 4 threads (3x speedup).
+
+Using an order of magnitude less memory (just under 200MB),
+the cuckoo solver takes 32.8 seconds per proof attempt.
+Its multi-threading performance is less impressive though,
+with 2 threads still taking 25.6 seconds and 4 taking 20.5 seconds.
 
 I claim that these implementations are reasonably optimal,
 secondly, that trading off (less) memory for (more) running time,
 incurs at least one order of magnitude extra slowdown,
 and finally, that cuda_miner.cu is a reasonably optimal memory-efficient GPU miner.
-The latter runs about 4x faster on an NVIDA GTX 980 than on an Intel Core-i7 CPU
-(and thus about as fast as xenoncat's CPU solver).
+The latter runs about 4x faster on an NVIDA GTX 980 than cuckoo_miner on an Intel Core-i7 CPU.
 To that end, I offer the following bounties:
 
 CPU Speedup Bounties
 --------------
-$5000 for an open source implementation that finds 42-cycles twice as fast
+$8000 for an open source implementation that finds 42-cycles twice as fast
 as cuckoo_miner, using no more than 1 byte per edge.
 
-$5000 for an open source implementation that finds 42-cycles twice as fast
-as xenoncat's miners, regardless of memory use.
+$8000 for an open source implementation that finds 42-cycles twice as fast
+as matrix_miner, regardless of memory use.
 
 Linear Time-Memory Trade-Off Bounty
 --------------
-$5000 for an open source implementation that uses at most N/k bits while finding 42-cycles up to 10 k times slower, for any k>=2.
+$8000 for an open source implementation that uses at most N/k bits while finding 42-cycles up to 10 k times slower, for any k>=2.
 
 All of these bounties require N ranging over {2^28,2^30,2^32} and #threads
 ranging over {1,2,4,8}, and further assume a high-end Intel Core i7 or Xeon and
@@ -129,7 +133,7 @@ that finds 42-cycles twice as fast as cuda_miner.cu on comparable hardware,
 using no more than 1 byte per edge.
 Again with N ranging over {2^28,2^30,2^32}.
 
-The Makefile defines corresponding targets cpubounty, tmtobounty, and gpubounty.
+The Makefile defines corresponding targets leancpubounty, meancpubounty, tmtobounty, and gpubounty.
 
 Double and Half bounties
 ------------------------
@@ -140,14 +144,23 @@ I further offer half the regular bounty for improvements by a factor of sqrt(2).
 
 Anyone who'd like to see my claims tested is invited to donate to the Cuckoo Cycle Bounty Fund at
 
-<a href="https://blockchain.info/address/1CnrpdKtfF3oAZmshyVC1EsRUa25nDuBvN">1CnrpdKtfF3oAZmshyVC1EsRUa25nDuBvN</a> (wallet balance as of July 13, 2017: 16.7 BTC, following a generous $20k donation by <a href="https://www.genesis-mining.com/">Genesis Mining</a>)
+<a href="https://blockchain.info/address/1CnrpdKtfF3oAZmshyVC1EsRUa25nDuBvN">1CnrpdKtfF3oAZmshyVC1EsRUa25nDuBvN</a>
+
+which has received generous donations by
+
+<ul>
+<li> Readers of the <a href="https://forum.z.cash/">Zcash Forum</a> </li>
+<li> A $20k donation by <a href="https://www.genesis-mining.com/">Genesis Mining</a> </li>
+<li> A 10BTC donation by <a href="https://www.simply-vc-co.ltd/?page_id=8">Simply VC</a> </li>
+</ul>
 
 I intend for the total bounty value to stay ahead of funding levels. Happy bounty hunting!
 
-Cryptocurrencies using, or planning to use, Cuckoo Cycle
+Projects using, or planning to use, Cuckoo Cycle
 --------------
 <UL>
 <LI> <a href="https://github.com/ignopeverell/grin">Minimal implementation of the MimbleWimble protocol</a>
 <LI> <a href="http://www.aeternity.com/">æternity - the oracle machine</a>
 <LI> <a href="https://github.com/bitcoin/bips/blob/master/bip-0154.mediawiki">BIP 154: Rate Limiting via peer specified challenges; Bitcoin Peer Services</a>
+<LI> <a href="http://www.raddi.net/">Raddi // radically decentralized discussion</a>
 </UL>
