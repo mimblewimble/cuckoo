@@ -9,7 +9,7 @@
 #include "cuckoo.h"
 #include <iostream>
 
-#include "cuckoo_miner/cuckoo_miner_cuda.h"
+#include "cuckoo_miner/cuda_miner_adds.h"
 
 // d(evice s)ipnode
 #if (__CUDA_ARCH__  >= 320) // redefine ROTL to use funnel shifter, 3% speed gain

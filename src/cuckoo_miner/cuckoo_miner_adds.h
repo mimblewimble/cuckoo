@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MATRIX_MINER_ADDS_H
-#define MATRIX_MINER_ADDS_H
+#ifndef CUCKOO_MINER_ADDS_H
+#define CUCKOO_MINER_ADDS_H
 
 #include "cuckoo_miner.h"
 
-// Cuckoo plugin function implementations for matrix_miner.cpp
-
 int NUM_THREADS_PARAM=1;
-int NUM_TRIMS_PARAM=60;
+int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 
 //Only going to allow one top-level worker thread here
 //only one thread writing, should get away without mutex
@@ -28,12 +26,10 @@ bool is_working=false;
 
 u32 hashes_processed_count=0;
 
-
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces);
-
 
 /**
  * Initialises all parameters, defaults, and makes them available
@@ -45,7 +41,7 @@ extern "C" int cuckoo_init(){
   PLUGIN_PROPERTY num_trims_prop;
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
   strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
-  num_trims_prop.default_value=60;
+  num_trims_prop.default_value=1 + (PART_BITS+3)*(PART_BITS+4)/2;
   num_trims_prop.min_value=5;
   num_trims_prop.max_value=100;
   add_plugin_property(num_trims_prop);
@@ -72,25 +68,29 @@ extern "C" void cuckoo_description(char * name_buf,
                               int* name_buf_len,
                               char *description_buf,
                               int* description_buf_len){
-  
-  //TODO: check we don't exceed lengths.. just keep it under 256 for now
-  int REQUIRED_SIZE=256;
-  if (*name_buf_len < REQUIRED_SIZE || *description_buf_len < REQUIRED_SIZE){
-    *name_buf_len=0;
-    *description_buf_len=0;
-    return;
-  }
 
-  const char* name = "cuckoo_mean_cpu_%d\0";
+  //TODO: check we don't exceed lengths.. just keep it under 256 for now
+	int REQUIRED_SIZE=256;
+	if (*name_buf_len < REQUIRED_SIZE || *description_buf_len < REQUIRED_SIZE){
+		*name_buf_len=0;
+		*description_buf_len=0;
+		return;
+	}
+  int name_buf_len_in = *name_buf_len;
+  const char* name = "cuckoo_edgetrim_%d\0";
   sprintf(name_buf, name, EDGEBITS+1);
   *name_buf_len = strlen(name);
-  
-  const char* desc1 = "Looks for a %d-cycle on cuckoo_%d using mean cpu algorithm\0";
-  
-  sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
-  *description_buf_len = strlen(description_buf);
- 
 
+  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using lean CPU algorithm.\n \
+  Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
+
+  u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
+  int edgeUnit, nodeUnit;
+  for (edgeUnit=0; edgeBytes >= 1024; edgeBytes>>=10,edgeUnit++) ;
+  for (nodeUnit=0; nodeBytes >= 1024; nodeBytes>>=10,nodeUnit++) ;
+  sprintf(description_buf, desc1,     
+  PROOFSIZE, EDGEBITS+1, (int)edgeBytes, " KMGT"[edgeUnit], (int)nodeBytes, " KMGT"[nodeUnit], NSIPHASH, SIZEOF_TWICE_ATOM);
+  *description_buf_len = strlen(description_buf);
 }
 
 /// Return a simple json list of parameters
@@ -101,12 +101,12 @@ extern "C" int cuckoo_parameter_list(char *params_out_buf,
                                   
 }
 
-/// Return a simple json list of parameters
+/// 
 
 extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
                                      int value){
-  
+
   if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
   snprintf(compare_buf,param_name_len+1,"%s", param_name);
@@ -126,7 +126,7 @@ extern "C" int cuckoo_set_parameter(char *param_name,
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  return PROPERTY_RETURN_NOT_FOUND;                                
+  return PROPERTY_RETURN_NOT_FOUND;
 }
 
 extern "C" int cuckoo_get_parameter(char *param_name,
@@ -166,7 +166,7 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
-  //single_mode=false;
+  single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   u32 response[PROOFSIZE];
 
@@ -211,5 +211,11 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 	*length=3;
 	return PROPERTY_RETURN_OK;
 }
+
+
+
+
+
+
 
 #endif

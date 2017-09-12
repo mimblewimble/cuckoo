@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Functions specific to cuda implementation
-#ifndef CUCKOO_MINER_CUDA_H
-#define CUCKOO_MINER_CUDA_H
+#ifndef CUDA_MINER_ADDS_H
+#define CUDA_MINER_ADDS_H
 
 #include <chrono>
 #include "cuckoo_miner.h"
@@ -150,6 +150,7 @@ u32 next_free_device_id(){
  */
 
 extern "C" int cuckoo_init(){
+	allocated_properties=0;
   PLUGIN_PROPERTY num_trims_prop;
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
   strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
@@ -171,6 +172,7 @@ extern "C" int cuckoo_init(){
   NUM_THREADS_PARAM = num_threads_prop.default_value;
 
   populate_device_info();
+  return PROPERTY_RETURN_OK;
 }
 
 extern "C" void cuckoo_description(char * name_buf,
@@ -179,11 +181,18 @@ extern "C" void cuckoo_description(char * name_buf,
                               int* description_buf_len){
   
   //TODO: check we don't exceed lengths.. just keep it under 256 for now
-  const char* name = "cuckoo_cuda_%d\0";
+  int REQUIRED_SIZE=256;
+  if (*name_buf_len < REQUIRED_SIZE || *description_buf_len < REQUIRED_SIZE){
+    *name_buf_len=0;
+    *description_buf_len=0;
+    return;
+  }
+
+  const char* name = "cuckoo_lean_cuda_%d\0";
   sprintf(name_buf, name, EDGEBITS+1);
   *name_buf_len = strlen(name);
   
-  const char* desc1 = "Lookings for %d-cycle on cuckoo%d using nvidia CUDA miner\0";
+  const char* desc1 = "Looks for %d-cycle on cuckoo_%d using nVidia CUDA miner\0";
   
   sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
   *description_buf_len = strlen(description_buf);
@@ -230,7 +239,18 @@ extern "C" int cuckoo_set_parameter(char *param_name,
 extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
                                      int* value){
-  return 0;
+  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
+  char compare_buf[MAX_PROPERTY_NAME_LENGTH];
+  snprintf(compare_buf,param_name_len+1,"%s", param_name);
+  if (strcmp(compare_buf,"NUM_TRIMS")==0){
+       *value = NUM_TRIMS_PARAM;
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"NUM_THREADS")==0){
+       *value = NUM_THREADS_PARAM;
+       return PROPERTY_RETURN_OK;
+  }
+  return PROPERTY_RETURN_NOT_FOUND;
 }
 
 u32 hashes_processed_count=0;
