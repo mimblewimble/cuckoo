@@ -20,7 +20,7 @@
 // Cuckoo plugin function implementations for matrix_miner.cpp
 
 int NUM_THREADS_PARAM=1;
-int NUM_TRIMS_PARAM=60;
+int NUM_TRIMS_PARAM=64;
 
 //Only going to allow one top-level worker thread here
 //only one thread writing, should get away without mutex
@@ -44,9 +44,9 @@ extern "C" int cuckoo_init(){
   allocated_properties=0;
   PLUGIN_PROPERTY num_trims_prop;
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
-  strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
-  num_trims_prop.default_value=60;
-  num_trims_prop.min_value=5;
+  strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform (will be rounded to be even)\0");
+  num_trims_prop.default_value=64;
+  num_trims_prop.min_value=6;
   num_trims_prop.max_value=100;
   add_plugin_property(num_trims_prop);
 
@@ -107,11 +107,12 @@ extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
                                      int value){
   
-  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
+  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
   snprintf(compare_buf,param_name_len+1,"%s", param_name);
   if (strcmp(compare_buf,"NUM_TRIMS")==0){
     if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
+       NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
        NUM_TRIMS_PARAM=value;
        return PROPERTY_RETURN_OK;
     } else {

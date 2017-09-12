@@ -921,7 +921,6 @@ public:
     nsols = 0;
   }
   void setheadergrin(char* header, const u32 len) {
-    printf("here");
     setheader(header, len, &trimmer->sip_keys);
     nsols = 0;
   }

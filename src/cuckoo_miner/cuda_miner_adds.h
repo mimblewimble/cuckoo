@@ -214,7 +214,7 @@ extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
                                      int value){
   
-  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return -1;
+  if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
   snprintf(compare_buf,param_name_len+1,"%s", param_name);
   if (strcmp(compare_buf,"NUM_TRIMS")==0){

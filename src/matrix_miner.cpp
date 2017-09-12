@@ -15,11 +15,12 @@ extern "C" int cuckoo_call(char* header_data,
                            u32* sol_nonces){
 
   assert(NUM_THREADS_PARAM>0);
+	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
 
   print_buf("Coming in is: ", (const unsigned char*) &header_data, header_length);
 
-  u32 nonce = 0;
   u32 range = 1;
+	u32 nonce = 0;
 #ifdef SAVEEDGES
   bool showcycle = 1;
 #else
