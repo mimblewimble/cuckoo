@@ -283,7 +283,7 @@ void *process_internal_worker (void *vp) {
 
   //this should set the device for this thread
   cudaSetDevice(args->device_id);
-  
+ 
   u32 response[PROOFSIZE];
   u64 start_time=timestamp();
 
@@ -294,16 +294,17 @@ void *process_internal_worker (void *vp) {
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
-    OUTPUT_QUEUE.enqueue(output);  
+    OUTPUT_QUEUE.enqueue(output);
   }
   hashes_processed_count+=1;
   DEVICE_INFO[args->device_id].last_start_time=start_time;
   DEVICE_INFO[args->device_id].last_end_time=timestamp();
   DEVICE_INFO[args->device_id].last_solution_time=DEVICE_INFO[args->device_id].last_end_time-
-	 DEVICE_INFO[args->device_id].last_start_time; 
+  DEVICE_INFO[args->device_id].last_start_time; 
   DEVICE_INFO[args->device_id].is_busy=false;
   DEVICE_INFO[args->device_id].iterations_completed++;
   delete(args);
+  internal_processing_finished=true;
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
@@ -316,10 +317,14 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
     DEVICE_INFO[device_id].is_busy=true;
     DEVICE_INFO[device_id].device_id=device_id;
     pthread_t internal_worker_thread;
+    is_working=true;
+    if (should_quit) return 1;
+    internal_processing_finished=false;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, args)){
         if (pthread_detach(internal_worker_thread)){
             return 1;
-        } 
+        }
     }
+    return 0;
 }
 #endif

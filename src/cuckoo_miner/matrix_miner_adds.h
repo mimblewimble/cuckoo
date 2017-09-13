@@ -22,10 +22,6 @@
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=64;
 
-//Only going to allow one top-level worker thread here
-//only one thread writing, should get away without mutex
-bool is_working=false;
-
 u32 hashes_processed_count=0;
 
 
@@ -190,6 +186,8 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
   is_working=true;
+  if (should_quit) return 1;
+  internal_processing_finished=false;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
         //or you end up in a race condition and the same hash is submit many times
@@ -199,7 +197,7 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
         } 
         
     }
-    
+   return 0;
 }
 
 

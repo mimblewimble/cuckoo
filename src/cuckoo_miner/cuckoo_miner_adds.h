@@ -20,10 +20,6 @@
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 
-//Only going to allow one top-level worker thread here
-//only one thread writing, should get away without mutex
-bool is_working=false;
-
 u32 hashes_processed_count=0;
 
 //forward dec
@@ -188,6 +184,8 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   memcpy(args.hash, hash, sizeof(args.hash));
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
+  if (should_quit) return 1;
+  internal_processing_finished=false;
   is_working=true;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
@@ -195,10 +193,9 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
  
         if (pthread_detach(internal_worker_thread)){
             return 1;
-        } 
-        
+        }
     }
-    
+   return 0;
 }
 
 
@@ -211,11 +208,5 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 	*length=3;
 	return PROPERTY_RETURN_OK;
 }
-
-
-
-
-
-
 
 #endif
