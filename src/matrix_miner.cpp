@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-#include "cuckoo_miner/matrix_miner_adds.h"
-
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
@@ -17,7 +15,7 @@ extern "C" int cuckoo_call(char* header_data,
   assert(NUM_THREADS_PARAM>0);
 	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
 
-  print_buf("Coming in is: ", (const unsigned char*) &header_data, header_length);
+  print_buf("(Matrix Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
 
   u32 range = 1;
 	u32 nonce = 0;

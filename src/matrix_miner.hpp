@@ -19,6 +19,7 @@
 #include "osx_barrier.h"
 #endif
 
+#include "cuckoo_miner/matrix_miner_adds.h"
 // algorithm/performance parameters
 
 // EDGEBITS/NEDGES/EDGEMASK defined in cuckoo.h
@@ -277,6 +278,8 @@ public:
     u32 last[NX];;
 #endif
   
+    //STOP_PROCESSING
+    if (should_quit) return;
     rdtsc0 = __rdtsc();
     u8 const *base = (u8 *)buckets;
     indexer<ZBUCKETSIZE> dst;
@@ -309,6 +312,8 @@ public:
         last[x] = edge;
 #endif
       for (; edge < endedge; edge += NSIPHASH) {
+        //STOP_PROCESSING
+        if (should_quit) return;
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 #if NSIPHASH == 1
@@ -448,7 +453,7 @@ public:
           small.index[uy] += SMALLSIZE;
         }
         if (unlikely(edge >> EDGEBITSLO != ((my+1) * NYZ - 1) >> EDGEBITSLO))
-        { printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, (my+1)*NYZ-1); exit(0); }
+        { printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, (my+1)*NYZ-1); return; }
       }
       u8 *degs = tdegs[id];
       small.storeu(tbuckets+id, 0);
@@ -480,7 +485,7 @@ public:
           zs    += delta;
         }
         if (unlikely(edge >> NONDEGBITS != EDGEMASK >> NONDEGBITS))
-        { printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, EDGEMASK); exit(0); }
+        { printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, EDGEMASK); return; }
         assert(edges - edges0 < NTRIMMEDZ);
         const u16 *readz = tzs[id];
         const u32 *readedge = edges0;
@@ -569,6 +574,8 @@ dst.index[vx] += BIGSIZE;
       small.matrixu(0);
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         u32 uxyz = ux << YZBITS;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         const u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -587,7 +594,7 @@ dst.index[vx] += BIGSIZE;
           small.index[vy] += DSTSIZE;
         }
         if (unlikely(uxyz >> YZBITS != ux))
-        { printf("OOPS3: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); exit(0); }
+        { printf("OOPS3: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); return; }
       }
       u8 *degs = tdegs[id];
       small.storeu(tbuckets+id, 0);
@@ -647,6 +654,8 @@ dst.index[vx] += BIGSIZE;
       small.matrixu(0);
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         u32 uxyz = ux << (TRIMONV ? YZBITS : YZ1BITS);
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -665,7 +674,7 @@ dst.index[vx] += BIGSIZE;
           small.index[vy] += SRCSIZE;
         }
         if (unlikely(uxyz >> (TRIMONV ? YZBITS : YZ1BITS) != ux))
-        { printf("OOPS5: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); exit(0); }
+        { printf("OOPS5: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); return; }
       }
       u8 *degs = tdegs[id];
       small.storeu(tbuckets+id, 0);
@@ -741,6 +750,8 @@ dst.index[vx] += BIGSIZE;
           degs[*readbig & YZ1MASK]++;
        }
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbig = (u32 *)zb.bytes, *endreadbig = (u32 *)((u8 *)readbig + zb.size);
         for (; readbig < endreadbig; readbig++) {
@@ -1015,6 +1026,8 @@ public:
     rdtsc0 = __rdtsc();
     for (u32 vx = 0; vx < NX; vx++) {
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = trimmer->buckets[ux][vx];
         u32 *readbig = (u32 *)zb.bytes, *endreadbig = (u32 *)((u8 *)readbig + zb.size);
 // printf("id %d vx %d ux %d size %u\n", id, vx, ux, zb.size/4);
@@ -1059,7 +1072,7 @@ public:
     printf("cuckoo load %d%%\n", pctload);
     if (pctload > 90) {
       printf("overload!\n");
-      exit(0);
+      return 0;
     }
     cuckoo = new cuckoo_hash(trimmer->tbuckets);
     findcycles();

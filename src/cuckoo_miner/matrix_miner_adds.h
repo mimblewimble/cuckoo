@@ -24,12 +24,13 @@ int NUM_TRIMS_PARAM=64;
 
 u32 hashes_processed_count=0;
 
+DeviceInfo DEVICE_INFO;
 
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces);
-
+void populate_device_info();
 
 /**
  * Initialises all parameters, defaults, and makes them available
@@ -55,6 +56,8 @@ extern "C" int cuckoo_init(){
   num_threads_prop.min_value=1;
   num_threads_prop.max_value=32;
   add_plugin_property(num_threads_prop);
+
+  populate_device_info();
 
   NUM_THREADS_PARAM = num_threads_prop.default_value;
   return PROPERTY_RETURN_OK;
@@ -163,10 +166,10 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
-  //single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   u32 response[PROOFSIZE];
 
+  u64 start_time=timestamp();
   int return_val=cuckoo_call(args->hash, sizeof(args->hash), response);
 
   if (return_val==1){
@@ -176,6 +179,14 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
+  hashes_processed_count+=1;
+  DEVICE_INFO->last_start_time=start_time;
+  DEVICE_INFO->last_end_time=timestamp();
+  DEVICE_INFO->last_solution_time=DEVICE_INFO->last_end_time-
+  DEVICE_INFO->last_start_time; 
+  DEVICE_INFO->is_busy=false;
+  DEVICE_INFO->iterations_completed++;
+  delete(args);
   is_working=false;
   internal_processing_finished=true;
 }
@@ -187,6 +198,7 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   pthread_t internal_worker_thread;
   is_working=true;
   if (should_quit) return 1;
+	DEVICE_INFO->is_busy=true;
   internal_processing_finished=false;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
@@ -201,14 +213,52 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
 }
 
 
+void populate_device_info(){
+    DEVICE_INFO=new deviceInfo();
+    strcpy(DEVICE_INFO->device_name,"CPU\0");
+}
 /*
  * returns current stats for all working devices
  */
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
-	sprintf(prop_string, "[]\0");
-	*length=3;
-	return PROPERTY_RETURN_OK;
+    int remaining=*length;
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%d,\"iterations_completed\":%lld}";
+    //minimum return is "[]\0"
+    if (remaining<=3){
+        //TODO: Meaningful return code
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
+    }
+    prop_string[0]='[';
+    int last_write_pos=1;
+    int last_written=snprintf(prop_string+last_write_pos, 
+                          remaining, 
+                          device_stat_json, DEVICE_INFO->device_id, 
+                          DEVICE_INFO->device_name, DEVICE_INFO->last_start_time,
+                          DEVICE_INFO->last_end_time, DEVICE_INFO->last_solution_time,
+     DEVICE_INFO->iterations_completed);
+    remaining-=last_written;
+    last_write_pos+=last_written;
+    //no room for anything else, comma or trailing ']'
+	 
+    //write final characters
+    if (remaining<2){
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
+    }
+    //overwrite trailing \0
+    prop_string[last_write_pos]=']';
+    prop_string[last_write_pos+1]='\0';
+    remaining -=2;
+    *length=last_write_pos+1;
+    
+    //empty set
+    if (*length==3){
+        *length=2;
+    }
+    return PROPERTY_RETURN_OK;
 }
 
+void stop_processing_internal(){
+
+}
 #endif

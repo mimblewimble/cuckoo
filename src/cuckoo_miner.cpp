@@ -26,7 +26,7 @@ extern "C" int cuckoo_call(char* header_data,
 
   //assert(header_length <= sizeof(header_data));
 
-  print_buf("Coming in is: ", (const unsigned char*) &header_data, header_length);
+  print_buf("(Cuckoo Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
 
   //memset(header, 0, sizeof(header));
   /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {

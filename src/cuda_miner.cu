@@ -224,14 +224,14 @@ void setheadergrin(char* header, const u32 len) {
   }
 };
 
-__global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part) {
+__global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part, volatile bool* should_quit_internal) {
   shrinkingset &alive = ctx->alive;
   twice_set &nonleaf = ctx->nonleaf;
   siphash_keys sip_keys = ctx->sip_keys; // local copy sip context; 2.5% speed gain
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  for (edge_t block = id*32; block < NEDGES; block += ctx->nthreads*32) {
+  for (edge_t block = id*32; block < NEDGES && !*should_quit_internal; block += ctx->nthreads*32) {
     u32 alive32 = alive.block(block);
-    for (edge_t nonce = block-1; alive32; ) { // -1 compensates for 1-based ffs
+    for (edge_t nonce = block-1; alive32 && !*should_quit_internal; ) { // -1 compensates for 1-based ffs
       u32 ffs = __ffs(alive32);
       nonce += ffs; alive32 >>= ffs;
       node_t u = dipnode(sip_keys, nonce, uorv);
@@ -242,14 +242,14 @@ __global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part) {
   }
 }
 
-__global__ void kill_leaf_edges(cuckoo_ctx *ctx, u32 uorv, u32 part) {
+__global__ void kill_leaf_edges(cuckoo_ctx *ctx, u32 uorv, u32 part, volatile bool* should_quit_internal) {
   shrinkingset &alive = ctx->alive;
   twice_set &nonleaf = ctx->nonleaf;
   siphash_keys sip_keys = ctx->sip_keys;
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  for (edge_t block = id*32; block < NEDGES; block += ctx->nthreads*32) {
+  for (edge_t block = id*32; block < NEDGES && !*should_quit_internal; block += ctx->nthreads*32) {
     u32 alive32 = alive.block(block);
-    for (edge_t nonce = block-1; alive32; ) { // -1 compensates for 1-based ffs
+    for (edge_t nonce = block-1; alive32 && !*should_quit_internal; ) { // -1 compensates for 1-based ffs
       u32 ffs = __ffs(alive32);
       nonce += ffs; alive32 >>= ffs;
       node_t u = dipnode(sip_keys, nonce, uorv);
@@ -280,6 +280,10 @@ u32 path(cuckoo_hash &cuckoo, node_t u, node_t *us) {
 typedef std::pair<node_t,node_t> edge;
 
 #include <unistd.h>
+//this flag has to be actively set to kill the process
+//while device functions are running
+bool* d_flag;
+
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
@@ -288,6 +292,7 @@ extern "C" int cuckoo_call(char* header_data,
   int tpb = 0;
   int nonce = 0;
   int range = 1;
+  print_buf("(Cuda Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
   /*int c;
   while ((c = getopt (argc, argv, "h:n:m:r:t:p:")) != -1) {
     switch (c) {
@@ -345,6 +350,12 @@ extern "C" int cuckoo_call(char* header_data,
   cudaEvent_t start, stop;
   if (checkCudaErrors(cudaEventCreate(&start))!=0) return 0;
   if (checkCudaErrors(cudaEventCreate(&stop))!=0) return 0;
+  bool * should_quit_internal = new bool;
+  *should_quit_internal=false;
+
+  cudaMalloc(&d_flag,sizeof(bool));
+  cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
+
   for (int r = 0; r < range; r++) {
     cudaEventRecord(start, NULL);
     if (checkCudaErrors(cudaMemset(ctx.alive.bits, 0, edgeBytes))!=0) return 0;
@@ -354,17 +365,23 @@ extern "C" int cuckoo_call(char* header_data,
     for (u32 round=0; round < trims; round++) {
       for (u32 uorv = 0; uorv < 2; uorv++) {
         for (u32 part = 0; part <= PART_MASK; part++) {
+          if(should_quit) {
+             printf("Should quit 1");
+             *should_quit_internal=true;
+             cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
+             cudaDeviceSynchronize();
+             return 0;
+          }
           if (checkCudaErrors(cudaMemset(ctx.nonleaf.bits, 0, nodeBytes))!=0) return 0;
-          count_node_deg<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part);
-          kill_leaf_edges<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part);
+          count_node_deg<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part, d_flag);
+          kill_leaf_edges<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part, d_flag);
         }
       }
     }
-  
+
     bits = (u64 *)calloc(NEDGES/64, sizeof(u64));
     assert(bits != 0);
     cudaMemcpy(bits, ctx.alive.bits, (NEDGES/64) * sizeof(u64), cudaMemcpyDeviceToHost);
-
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     float duration;
@@ -395,9 +412,14 @@ extern "C" int cuckoo_call(char* header_data,
       }
       u64 alive64 = ~bits[block/64];
       for (edge_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
-        if(should_quit){
-           break;
-        }
+        if(should_quit) {
+					printf("Should quit 3");
+          *should_quit_internal=true;
+           cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
+           cudaDeviceSynchronize();
+           return 0;
+        };
+        
         u32 ffs = __builtin_ffsll(alive64);
         nonce += ffs; alive64 >>= ffs;
         node_t u0=sipnode(&ctx.sip_keys, nonce, 0), v0=sipnode(&ctx.sip_keys, nonce, 1);
@@ -424,6 +446,7 @@ extern "C" int cuckoo_call(char* header_data,
               for (edge_t blk = 0; blk < NEDGES; blk += 64) {
                 u64 alv64 = ~bits[blk/64];
                 for (edge_t nce = blk-1; alv64; ) { // -1 compensates for 1-based ffs
+                  
                   u32 ffs = __builtin_ffsll(alv64);
                   nce += ffs; alv64 >>= ffs;
                   edge e(sipnode(&ctx.sip_keys, nce, 0), sipnode(&ctx.sip_keys, nce, 1));
@@ -468,18 +491,11 @@ extern "C" int cuckoo_call(char* header_data,
   return 0;
 }
 
-
-//use for quick valgrind tests, cause valgrind against rust
-//programs doesn't work
-int main(){
-  cuckoo_init();
-  char nonce[32]={0};
-  u32 sol_nonces[42]={0};
-
-  for (int i=0;i<5;i++){
-    cuckoo_call(nonce, 32, sol_nonces);
-  }
-
+void stop_processing_internal(){
+   printf("Stop processing internal()");
+   bool* should_quit_internal=new bool;
+	 *should_quit_internal=true;
+   cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
+   cudaDeviceSynchronize();
 
 }
-

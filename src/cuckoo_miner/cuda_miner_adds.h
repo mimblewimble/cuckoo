@@ -16,18 +16,7 @@
 #ifndef CUDA_MINER_ADDS_H
 #define CUDA_MINER_ADDS_H
 
-#include <chrono>
 #include "cuckoo_miner.h"
-
-#include <ctime>
-
-u64 timestamp() {
-    using namespace std::chrono;
-    milliseconds ms = duration_cast< milliseconds >(
-		    system_clock::now().time_since_epoch()
-		);
-    return ms.count();
-}
 
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
@@ -278,7 +267,6 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
-  //single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
 
   //this should set the device for this thread

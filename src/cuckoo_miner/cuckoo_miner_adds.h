@@ -162,7 +162,6 @@ struct InternalWorkerArgs {
 };
 
 void *process_internal_worker (void *vp) {
-  single_mode=false;
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   u32 response[PROOFSIZE];
 
@@ -209,4 +208,7 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 	return PROPERTY_RETURN_OK;
 }
 
+void stop_processing_internal(){
+
+}
 #endif

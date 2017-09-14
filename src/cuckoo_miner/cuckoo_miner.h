@@ -25,6 +25,8 @@
 #include <unistd.h>
 //Just for debug output when printf is squashed
 #include <iostream>
+#include <chrono>
+#include <ctime>
 
 #ifdef __APPLE__
 #include "../osx_barrier.h"
@@ -32,7 +34,7 @@
 
 #include "concurrentqueue.h"
 
-#define SQUASH_OUTPUT 1
+#define SQUASH_OUTPUT 1 
 
 #if SQUASH_OUTPUT
 #define printf(fmt, ...) (0)
@@ -40,6 +42,15 @@
 
 #define HASH_LENGTH 32
 int MAX_QUEUE_SIZE=1000;
+
+
+u64 timestamp() {
+    using namespace std::chrono;
+    milliseconds ms = duration_cast< milliseconds >(
+		    system_clock::now().time_since_epoch()
+		);
+    return ms.count();
+}
 
 /** 
  * Some hardwired stuff to hold properties
@@ -137,6 +148,30 @@ static void print_buf(const char *title, const unsigned char *buf, size_t buf_le
              ( i + 1 ) % 16 == 0 ? "\r\n" : " " );
 }
 
+//Device info for CPU miners
+typedef class deviceInfo {
+  public:
+    int device_id;
+    char device_name[256];
+    bool is_busy;
+    //store the current hash rate
+    u64 last_start_time;
+    u64 last_end_time; 
+    u64 last_solution_time;
+    u32 iterations_completed;
+
+    deviceInfo();
+
+} *DeviceInfo;
+
+deviceInfo::deviceInfo(){
+    device_id=0;
+    is_busy=false;
+    last_start_time=0;
+    last_end_time=0;
+    last_solution_time=0;
+    iterations_completed=0;
+}
 
 //This should be set to true if queue processing is stopped and not
 //running (this file)
@@ -214,7 +249,7 @@ extern "C" void cuckoo_clear_queues(){
         INPUT_QUEUE.try_dequeue(in);
         OUTPUT_QUEUE.try_dequeue(out);
     }
-		should_quit=false;
+		//should_quit=false;
 }
 
 //forward decs, these should be implemented by
@@ -222,9 +257,8 @@ extern "C" void cuckoo_clear_queues(){
 //the plugin is ready to accept the next hash
 static bool cuckoo_internal_ready_for_hash();
 
-// and process it, placing any results on the
-// output queue
 static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce);
+static void stop_processing_internal();
 
 void *cuckoo_process(void *args) {
     while(!should_quit){
@@ -254,6 +288,7 @@ extern "C" int cuckoo_start_processing() {
 }
 
 extern "C" int cuckoo_stop_processing() {
+    printf("Quit signal received");
     should_quit=true;
     return 1;
 }
@@ -264,5 +299,12 @@ extern "C" int cuckoo_has_processing_stopped() {
     }
     return 0;
 }
+
+extern "C" int cuckoo_reset_processing() {
+    should_quit=false;
+    stop_processing_internal();
+    return 1;
+}
+
 #endif //CUCKOO_MINER_H
 

@@ -50,7 +50,6 @@ typedef u64 node_t;
 #endif
 #include <set>
 
-bool single_mode=true;
 
 // algorithm/performance parameters; assume EDGEBITS < 31
 
@@ -292,6 +291,9 @@ public:
     for (nonce_t block = id*64; block < NEDGES; block += nthreads*64) {
       u64 alive64 = alive->block(block);
       for (nonce_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
+        if(should_quit){
+          pthread_exit(NULL);
+        }
         u32 ffs = __builtin_ffsll(alive64);
         nonce += ffs; alive64 >>= ffs;
         indices[nidx++ % NSIPHASH] = 2*nonce + uorv;
@@ -328,6 +330,9 @@ public:
     for (nonce_t block = id*64; block < NEDGES; block += nthreads*64) {
       u64 alive64 = alive->block(block);
       for (nonce_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
+        if(should_quit){
+          pthread_exit(NULL);
+        }
         u32 ffs = __builtin_ffsll(alive64);
         nonce += ffs; alive64 >>= ffs;
         indices[nidx++] = 2*nonce + uorv;
@@ -436,7 +441,7 @@ void *worker(void *vp) {
           u32 load = (u32)(100LL * alive->count() / CUCKOO_SIZE);
           printf(" %c%d %4d%%", "UV"[uorv], part, load);
         }
-        if(!single_mode && should_quit){
+        if(should_quit){
           pthread_exit(NULL);
         }
       }
@@ -466,7 +471,7 @@ void *worker(void *vp) {
 #endif
     u64 alive64 = alive->block(block);
     for (nonce_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
-      if(!single_mode && should_quit){
+      if( should_quit){
         pthread_exit(NULL);
       }
       u32 ffs = __builtin_ffsll(alive64);
