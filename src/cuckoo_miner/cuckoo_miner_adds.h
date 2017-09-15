@@ -20,12 +20,14 @@
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=1 + (PART_BITS+3)*(PART_BITS+4)/2;
 
-u32 hashes_processed_count=0;
+pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
+deviceInfo DEVICE_INFO;
 
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces);
+void populate_device_info();
 
 /**
  * Initialises all parameters, defaults, and makes them available
@@ -52,6 +54,8 @@ extern "C" int cuckoo_init(){
   num_threads_prop.max_value=32;
   add_plugin_property(num_threads_prop);
 
+  populate_device_info();
+
   NUM_THREADS_PARAM = num_threads_prop.default_value;
   return PROPERTY_RETURN_OK;
 }
@@ -73,7 +77,7 @@ extern "C" void cuckoo_description(char * name_buf,
 		return;
 	}
   int name_buf_len_in = *name_buf_len;
-  const char* name = "cuckoo_edgetrim_%d\0";
+  const char* name = "cuckoo_lean_cpu_%d\0";
   sprintf(name_buf, name, EDGEBITS+1);
   *name_buf_len = strlen(name);
 
@@ -146,12 +150,6 @@ extern "C" int cuckoo_can_accept_job(){
   return 1;
 }
 
-extern "C" u32 cuckoo_hashes_since_last_call(){
-    u32 return_val=hashes_processed_count;
-    hashes_processed_count=0;
-    return return_val;
-}
-
 bool cuckoo_internal_ready_for_hash(){
   return !is_working;
 }
@@ -165,6 +163,7 @@ void *process_internal_worker (void *vp) {
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   u32 response[PROOFSIZE];
 
+  u64 start_time=timestamp();
   int return_val=cuckoo_call(args->hash, sizeof(args->hash), response);
 
   if (return_val==1){
@@ -174,8 +173,17 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.last_start_time=start_time;
+  DEVICE_INFO.last_end_time=timestamp();
+  DEVICE_INFO.last_solution_time=DEVICE_INFO.last_end_time-
+  DEVICE_INFO.last_start_time; 
+  DEVICE_INFO.is_busy=false;
+  DEVICE_INFO.iterations_completed++;
+  pthread_mutex_unlock (&device_info_mutex);
   is_working=false;
   internal_processing_finished=true;
+  pthread_exit(NULL);
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
@@ -183,10 +191,13 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   memcpy(args.hash, hash, sizeof(args.hash));
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
-  if (should_quit) return 1;
-  internal_processing_finished=false;
   is_working=true;
-    if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
+  if (should_quit) return 1;
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.is_busy=true;
+	pthread_mutex_unlock(&device_info_mutex);
+  internal_processing_finished=false;
+      if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
         //or you end up in a race condition and the same hash is submit many times
  
@@ -197,18 +208,54 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
    return 0;
 }
 
+void populate_device_info(){
+    strcpy(DEVICE_INFO.device_name,"CPU\0");
+}
 
 /*
  * returns current stats for all working devices
  */
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
-	sprintf(prop_string, "[]\0");
-	*length=3;
-	return PROPERTY_RETURN_OK;
+    int remaining=*length;
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%d,\"iterations_completed\":%lld}";
+    //minimum return is "[]\0"
+    if (remaining<=3){
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
+    }
+    prop_string[0]='[';
+    int last_write_pos=1;
+    pthread_mutex_lock (&device_info_mutex);
+    int last_written=snprintf(prop_string+last_write_pos,
+                          remaining, 
+                          device_stat_json, DEVICE_INFO.device_id, 
+                          DEVICE_INFO.device_name, DEVICE_INFO.last_start_time,
+                          DEVICE_INFO.last_end_time, DEVICE_INFO.last_solution_time,
+     DEVICE_INFO.iterations_completed);
+    pthread_mutex_unlock(&device_info_mutex);
+    remaining-=last_written;
+    last_write_pos+=last_written;
+    //no room for anything else, comma or trailing ']'
+	 
+    //write final characters
+    if (remaining<2){
+        return PROPERTY_RETURN_BUFFER_TOO_SMALL;
+    }
+    //overwrite trailing \0
+    prop_string[last_write_pos]=']';
+    prop_string[last_write_pos+1]='\0';
+    remaining -=2;
+    *length=last_write_pos+1;
+    
+    //empty set
+    if (*length==3){
+        *length=2;
+    }
+    return PROPERTY_RETURN_OK;
+		return 0;
 }
 
-void stop_processing_internal(){
+/*void stop_processing_internal(){
 
-}
+}*/
 #endif

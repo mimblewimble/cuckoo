@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+#include "cuckoo_miner/matrix_miner_adds.h"
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
@@ -99,13 +101,11 @@ extern "C" int cuckoo_call(char* header_data,
       }
       free(threads);
       printf("\n");
-      hashes_processed_count++;
       return 1;
     }
     sumnsols += ctx.nsols;
   }
   free(threads);
-  hashes_processed_count++;
   printf("%d total solutions\n", sumnsols);
   return 0;
 

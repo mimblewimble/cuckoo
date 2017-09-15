@@ -26,6 +26,8 @@ extern "C" int cuckoo_call(char* header_data,
 int NUM_THREADS_PARAM=16384;
 int NUM_TRIMS_PARAM=32;
 
+pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 #define MAX_DEVICES 32
 u32 NUM_DEVICES=0;
 
@@ -242,14 +244,6 @@ extern "C" int cuckoo_get_parameter(char *param_name,
   return PROPERTY_RETURN_NOT_FOUND;
 }
 
-u32 hashes_processed_count=0;
-
-extern "C" u32 cuckoo_hashes_since_last_call(){
-    u32 return_val=hashes_processed_count;
-    hashes_processed_count=0;
-    return return_val;
-}
-
 bool cuckoo_internal_ready_for_hash(){
   //just return okay if a device is flagged as free
   for (int i=0;i<NUM_DEVICES;i++){
@@ -284,13 +278,14 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);
   }
-  hashes_processed_count+=1;
+  pthread_mutex_lock (&device_info_mutex);
   DEVICE_INFO[args->device_id].last_start_time=start_time;
   DEVICE_INFO[args->device_id].last_end_time=timestamp();
   DEVICE_INFO[args->device_id].last_solution_time=DEVICE_INFO[args->device_id].last_end_time-
   DEVICE_INFO[args->device_id].last_start_time; 
   DEVICE_INFO[args->device_id].is_busy=false;
   DEVICE_INFO[args->device_id].iterations_completed++;
+  pthread_mutex_unlock(&device_info_mutex);
   delete(args);
   internal_processing_finished=true;
 }
@@ -302,8 +297,10 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
     memcpy(args->nonce, nonce, sizeof(args->nonce));
     u32 device_id=next_free_device_id();
     args->device_id=device_id;
+    pthread_mutex_lock(&device_info_mutex);
     DEVICE_INFO[device_id].is_busy=true;
     DEVICE_INFO[device_id].device_id=device_id;
+    pthread_mutex_unlock(&device_info_mutex);
     pthread_t internal_worker_thread;
     is_working=true;
     if (should_quit) return 1;

@@ -491,11 +491,11 @@ extern "C" int cuckoo_call(char* header_data,
   return 0;
 }
 
-void stop_processing_internal(){
+/*void stop_processing_internal(){
    printf("Stop processing internal()");
    bool* should_quit_internal=new bool;
 	 *should_quit_internal=true;
    cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
    cudaDeviceSynchronize();
 
-}
+}*/

@@ -188,7 +188,6 @@ std::atomic_bool should_quit(false);
 
 std::atomic_bool is_working(false);
 
-
 typedef struct queueInput {
     unsigned char nonce[8];
     unsigned char hash[HASH_LENGTH];
@@ -258,7 +257,7 @@ extern "C" void cuckoo_clear_queues(){
 static bool cuckoo_internal_ready_for_hash();
 
 static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce);
-static void stop_processing_internal();
+//static void stop_processing_internal();
 
 void *cuckoo_process(void *args) {
     while(!should_quit){
@@ -289,6 +288,7 @@ extern "C" int cuckoo_start_processing() {
 
 extern "C" int cuckoo_stop_processing() {
     printf("Quit signal received");
+    //stop_processing_internal();
     should_quit=true;
     return 1;
 }
@@ -302,7 +302,6 @@ extern "C" int cuckoo_has_processing_stopped() {
 
 extern "C" int cuckoo_reset_processing() {
     should_quit=false;
-    stop_processing_internal();
     return 1;
 }
 

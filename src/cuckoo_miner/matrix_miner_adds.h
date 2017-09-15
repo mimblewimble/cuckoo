@@ -22,9 +22,8 @@
 int NUM_THREADS_PARAM=1;
 int NUM_TRIMS_PARAM=64;
 
-u32 hashes_processed_count=0;
-
-DeviceInfo DEVICE_INFO;
+pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
+deviceInfo DEVICE_INFO;
 
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
@@ -150,12 +149,6 @@ extern "C" int cuckoo_can_accept_job(){
   return 1;
 }
 
-extern "C" u32 cuckoo_hashes_since_last_call(){
-    u32 return_val=hashes_processed_count;
-    hashes_processed_count=0;
-    return return_val;
-}
-
 bool cuckoo_internal_ready_for_hash(){
   return !is_working;
 }
@@ -179,16 +172,17 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
-  hashes_processed_count+=1;
-  DEVICE_INFO->last_start_time=start_time;
-  DEVICE_INFO->last_end_time=timestamp();
-  DEVICE_INFO->last_solution_time=DEVICE_INFO->last_end_time-
-  DEVICE_INFO->last_start_time; 
-  DEVICE_INFO->is_busy=false;
-  DEVICE_INFO->iterations_completed++;
-  delete(args);
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.last_start_time=start_time;
+  DEVICE_INFO.last_end_time=timestamp();
+  DEVICE_INFO.last_solution_time=DEVICE_INFO.last_end_time-
+  DEVICE_INFO.last_start_time; 
+  DEVICE_INFO.is_busy=false;
+  DEVICE_INFO.iterations_completed++;
+  pthread_mutex_unlock (&device_info_mutex);
   is_working=false;
   internal_processing_finished=true;
+  pthread_exit(NULL);
 }
 
 int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
@@ -198,7 +192,9 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
   pthread_t internal_worker_thread;
   is_working=true;
   if (should_quit) return 1;
-	DEVICE_INFO->is_busy=true;
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.is_busy=true;
+  pthread_mutex_unlock(&device_info_mutex);
   internal_processing_finished=false;
     if (!pthread_create(&internal_worker_thread, NULL, process_internal_worker, &args)){
         //NB make sure more jobs are being blocked before calling detached,
@@ -214,8 +210,7 @@ int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned 
 
 
 void populate_device_info(){
-    DEVICE_INFO=new deviceInfo();
-    strcpy(DEVICE_INFO->device_name,"CPU\0");
+    strcpy(DEVICE_INFO.device_name,"CPU\0");
 }
 /*
  * returns current stats for all working devices
@@ -226,17 +221,18 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%d,\"iterations_completed\":%lld}";
     //minimum return is "[]\0"
     if (remaining<=3){
-        //TODO: Meaningful return code
         return PROPERTY_RETURN_BUFFER_TOO_SMALL;
     }
     prop_string[0]='[';
     int last_write_pos=1;
-    int last_written=snprintf(prop_string+last_write_pos, 
+    pthread_mutex_lock (&device_info_mutex);
+    int last_written=snprintf(prop_string+last_write_pos,
                           remaining, 
-                          device_stat_json, DEVICE_INFO->device_id, 
-                          DEVICE_INFO->device_name, DEVICE_INFO->last_start_time,
-                          DEVICE_INFO->last_end_time, DEVICE_INFO->last_solution_time,
-     DEVICE_INFO->iterations_completed);
+                          device_stat_json, DEVICE_INFO.device_id, 
+                          DEVICE_INFO.device_name, DEVICE_INFO.last_start_time,
+                          DEVICE_INFO.last_end_time, DEVICE_INFO.last_solution_time,
+     DEVICE_INFO.iterations_completed);
+    pthread_mutex_unlock(&device_info_mutex);
     remaining-=last_written;
     last_write_pos+=last_written;
     //no room for anything else, comma or trailing ']'
@@ -256,9 +252,10 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
         *length=2;
     }
     return PROPERTY_RETURN_OK;
+		return 0;
 }
 
-void stop_processing_internal(){
+/*void stop_processing_internal(){
 
-}
+}*/
 #endif

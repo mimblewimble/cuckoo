@@ -91,13 +91,11 @@ extern "C" int cuckoo_call(char* header_data,
       }
       free(threads);
       printf("\n");
-      hashes_processed_count++;
       return 1;
     }
     sumnsols += ctx.nsols;
   }
   free(threads);
-  hashes_processed_count++;
   printf("%d total solutions\n", sumnsols);
   return 0;
 }
