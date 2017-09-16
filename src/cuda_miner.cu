@@ -379,9 +379,22 @@ extern "C" int cuckoo_call(char* header_data,
       }
     }
 
+    
     bits = (u64 *)calloc(NEDGES/64, sizeof(u64));
     assert(bits != 0);
     cudaMemcpy(bits, ctx.alive.bits, (NEDGES/64) * sizeof(u64), cudaMemcpyDeviceToHost);
+    //operation above blocks for quite a while
+    if(should_quit) {
+       printf("Quitting 2");
+       free(bits);
+			 if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
+       if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
+       if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
+       *should_quit_internal=true;
+       cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
+       cudaDeviceSynchronize();
+       return 0;
+    }
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     float duration;
@@ -399,7 +412,6 @@ extern "C" int cuckoo_call(char* header_data,
       if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
       if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
       if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
-      //TODO: Clean up?
       return 0;
     }
   
@@ -407,14 +419,16 @@ extern "C" int cuckoo_call(char* header_data,
     cuckoo_ptr=&cuckoo;
     node_t us[MAXPATHLEN], vs[MAXPATHLEN];
     for (edge_t block = 0; block < NEDGES; block += 64) {
-      if(should_quit){
-        break;
-      }
+      
       u64 alive64 = ~bits[block/64];
       for (edge_t nonce = block-1; alive64; ) { // -1 compensates for 1-based ffs
         if(should_quit) {
-					printf("Should quit 3");
-          *should_quit_internal=true;
+					 printf("Should quit 3");
+           free(bits);
+           if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
+           if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
+           if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
+           *should_quit_internal=true;
            cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
            cudaDeviceSynchronize();
            return 0;

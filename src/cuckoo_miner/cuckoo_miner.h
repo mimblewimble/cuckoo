@@ -41,7 +41,7 @@
 #endif
 
 #define HASH_LENGTH 32
-int MAX_QUEUE_SIZE=1000;
+size_t MAX_QUEUE_SIZE=1000;
 
 
 u64 timestamp() {
@@ -205,7 +205,7 @@ moodycamel::ConcurrentQueue<QueueOutput> OUTPUT_QUEUE;
 
 extern "C" int cuckoo_is_queue_under_limit(){
     if (should_quit) return 0;
-    if (INPUT_QUEUE.size_approx()<=MAX_QUEUE_SIZE){
+    if (INPUT_QUEUE.size_approx()<MAX_QUEUE_SIZE){
         return 1;
     } else {
         return 0;
@@ -244,7 +244,7 @@ extern "C" void cuckoo_clear_queues(){
     //empty the queues
     QueueInput in;
     QueueOutput out;
-    for (int i=0;i<MAX_QUEUE_SIZE;i++){
+    for (size_t i=0;i<MAX_QUEUE_SIZE;i++){
         INPUT_QUEUE.try_dequeue(in);
         OUTPUT_QUEUE.try_dequeue(out);
     }
