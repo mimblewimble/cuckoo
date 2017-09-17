@@ -260,6 +260,17 @@ struct InternalWorkerArgs {
   u32 device_id;
 };
 
+void update_stats(u32 device_id, u64 start_time) {
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO[device_id].last_start_time=start_time;
+  DEVICE_INFO[device_id].last_end_time=timestamp();
+  DEVICE_INFO[device_id].last_solution_time=DEVICE_INFO[device_id].last_end_time-
+  DEVICE_INFO[device_id].last_start_time; 
+  DEVICE_INFO[device_id].is_busy=false;
+  DEVICE_INFO[device_id].iterations_completed++;
+  pthread_mutex_unlock(&device_info_mutex);
+}
+
 void *process_internal_worker (void *vp) {
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
 
@@ -278,14 +289,7 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);
   }
-  pthread_mutex_lock (&device_info_mutex);
-  DEVICE_INFO[args->device_id].last_start_time=start_time;
-  DEVICE_INFO[args->device_id].last_end_time=timestamp();
-  DEVICE_INFO[args->device_id].last_solution_time=DEVICE_INFO[args->device_id].last_end_time-
-  DEVICE_INFO[args->device_id].last_start_time; 
-  DEVICE_INFO[args->device_id].is_busy=false;
-  DEVICE_INFO[args->device_id].iterations_completed++;
-  pthread_mutex_unlock(&device_info_mutex);
+  update_stats(args->device_id, start_time);
   delete(args);
   internal_processing_finished=true;
 }

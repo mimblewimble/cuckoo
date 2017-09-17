@@ -14,6 +14,7 @@ extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            u32* sol_nonces){
 
+	u64 start_time=timestamp();
   assert(NUM_THREADS_PARAM>0);
 	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
 
@@ -101,12 +102,18 @@ extern "C" int cuckoo_call(char* header_data,
       }
       free(threads);
       printf("\n");
+      if(SINGLE_MODE){
+         update_stats(start_time);
+      }
       return 1;
     }
     sumnsols += ctx.nsols;
   }
   free(threads);
   printf("%d total solutions\n", sumnsols);
+  if(SINGLE_MODE){
+     update_stats(start_time);
+  }
   return 0;
 
 }

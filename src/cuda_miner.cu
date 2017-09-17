@@ -287,6 +287,7 @@ bool* d_flag;
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
+  u64 start_time=timestamp();
   int nthreads = NUM_THREADS_PARAM;
   int trims   = NUM_TRIMS_PARAM;
   int tpb = 0;
@@ -480,6 +481,9 @@ extern "C" int cuckoo_call(char* header_data,
               if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
               if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
               printf("\n");
+              if (SINGLE_MODE){
+                 update_stats(0, start_time);
+              }
               return 1;
 
             }
@@ -502,6 +506,9 @@ extern "C" int cuckoo_call(char* header_data,
   if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
   if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
   if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
+  if (SINGLE_MODE){
+      update_stats(0,start_time);
+  }
   return 0;
 }
 

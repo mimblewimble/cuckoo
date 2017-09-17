@@ -42,7 +42,7 @@
 
 #define HASH_LENGTH 32
 size_t MAX_QUEUE_SIZE=1000;
-
+bool SINGLE_MODE=true;
 
 u64 timestamp() {
     using namespace std::chrono;
@@ -278,6 +278,7 @@ extern "C" int cuckoo_start_processing() {
     should_quit=false;
     processing_finished=false;
     pthread_t cuckoo_process_thread;
+    SINGLE_MODE=false;
     if (!pthread_create(&cuckoo_process_thread, NULL, cuckoo_process, NULL)){
         if (pthread_detach(cuckoo_process_thread)){
             return 1;
@@ -302,6 +303,7 @@ extern "C" int cuckoo_has_processing_stopped() {
 
 extern "C" int cuckoo_reset_processing() {
     should_quit=false;
+    SINGLE_MODE=true;
     return 1;
 }
 

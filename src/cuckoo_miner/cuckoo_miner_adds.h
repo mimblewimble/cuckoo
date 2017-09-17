@@ -159,6 +159,17 @@ struct InternalWorkerArgs {
   unsigned char nonce[8];
 };
 
+void update_stats(u64 start_time) {
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.last_start_time=start_time;
+  DEVICE_INFO.last_end_time=timestamp();
+  DEVICE_INFO.last_solution_time=DEVICE_INFO.last_end_time-
+  DEVICE_INFO.last_start_time; 
+  DEVICE_INFO.is_busy=false;
+  DEVICE_INFO.iterations_completed++;
+  pthread_mutex_unlock (&device_info_mutex);
+}
+
 void *process_internal_worker (void *vp) {
   InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
   u32 response[PROOFSIZE];
@@ -173,14 +184,7 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
-  pthread_mutex_lock (&device_info_mutex);
-  DEVICE_INFO.last_start_time=start_time;
-  DEVICE_INFO.last_end_time=timestamp();
-  DEVICE_INFO.last_solution_time=DEVICE_INFO.last_end_time-
-  DEVICE_INFO.last_start_time; 
-  DEVICE_INFO.is_busy=false;
-  DEVICE_INFO.iterations_completed++;
-  pthread_mutex_unlock (&device_info_mutex);
+  update_stats(start_time);
   is_working=false;
   internal_processing_finished=true;
   pthread_exit(NULL);
