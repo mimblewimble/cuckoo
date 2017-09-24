@@ -1,14 +1,14 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2016 John Tromp
 
-#include "cuckoo_miner.hpp"
+#include "lean_miner.hpp"
 #include <unistd.h>
 #include <pthread.h>
 #ifdef __APPLE__
 #include "osx_barrier.h"
 #endif
 
-#include "cuckoo_miner/cuckoo_miner_adds.h"
+#include "cuckoo_miner/lean_miner_adds.h"
 
 #define MAXSOLS 8
 // arbitrary length of header hashed into siphash key

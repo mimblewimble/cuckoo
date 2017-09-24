@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CUCKOO_MINER_ADDS_H
-#define CUCKOO_MINER_ADDS_H
+#ifndef LEAN_MINER_ADDS_H
+#define LEAN_MINER_ADDS_H
 
 #include "cuckoo_miner.h"
 

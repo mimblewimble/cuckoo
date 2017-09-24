@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MATRIX_MINER_ADDS_H
-#define MATRIX_MINER_ADDS_H
+#ifndef MEAN_MINER_ADDS_H
+#define MEAN_MINER_ADDS_H
 
 #include "cuckoo_miner.h"
 
