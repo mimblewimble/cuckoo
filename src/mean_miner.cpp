@@ -92,7 +92,7 @@ extern "C" int cuckoo_call(char* header_data,
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
       //just return with the first solution we get
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      for (u32 i = 0; i < PROOFSIZE; i++){
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
         sol_nonces[i] = ctx.sols[s][i]; 
       }
