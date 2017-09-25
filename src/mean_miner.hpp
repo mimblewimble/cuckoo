@@ -407,8 +407,8 @@ public:
     u64 rdtsc0, rdtsc1;
   
 #if NSIPHASH == 8
-    static const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
-    static const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
+    const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
+    const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
     const __m256i vinit = _mm256_set_epi64x(
       sip_keys.k1^0x7465646279746573ULL,
       sip_keys.k0^0x6c7967656e657261ULL,
@@ -417,8 +417,8 @@ public:
     __m256i vpacket0, vpacket1, vhi0, vhi1;
     __m256i v0, v1, v2, v3, v4, v5, v6, v7;
 #endif
-    static const u32 NONDEGBITS = std::min(BIGSLOTBITS, 2 * YZBITS) - ZBITS;
-    static const u32 NONDEGMASK = (1 << NONDEGBITS) - 1;
+    const u32 NONDEGBITS = std::min(BIGSLOTBITS, 2 * YZBITS) - ZBITS;
+    const u32 NONDEGMASK = (1 << NONDEGBITS) - 1;
     indexer<ZBUCKETSIZE> dst;
     indexer<TBUCKETSIZE> small;
   
