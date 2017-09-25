@@ -105,5 +105,8 @@ extern "C" int cuckoo_call(char* header_data,
     sumnsols += nsols;
   }
   printf("%d total solutions\n", sumnsols);
+  if (SINGLE_MODE) {
+    update_stats(start_time);
+  }
   return 0;
 }
