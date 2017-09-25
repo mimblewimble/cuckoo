@@ -17,7 +17,9 @@
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
                            u32* sol_nonces){
-  
+  if (SINGLE_MODE){
+    should_quit=false;
+  }
   u64 start_time=timestamp();
   int c;
   int nonce = 0;
@@ -69,6 +71,7 @@ extern "C" int cuckoo_call(char* header_data,
   cuckoo_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, MAXSOLS);
 
   u32 sumnsols = 0;
+  bool sol_found=false;
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx.setheadergrin(header_data, header_length);
