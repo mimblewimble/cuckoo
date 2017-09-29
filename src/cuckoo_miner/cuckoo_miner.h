@@ -268,6 +268,11 @@ void *cuckoo_process(void *args) {
         if (found){
             cuckoo_internal_process_hash(item.hash, HASH_LENGTH, item.nonce);
         }
+        //avoid a busy wait type situation
+        //Should be done a bit less dumbly, but this is only called when
+        //a user of the lib requests a quit... hopefully shouldn't affect
+        //performance too badly
+        usleep(5000000);
     }
     cuckoo_clear_queues();
     processing_finished=true;
