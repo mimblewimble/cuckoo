@@ -20,7 +20,7 @@
 // Cuckoo plugin function implementations for matrix_miner.cpp
 
 int NUM_THREADS_PARAM=1;
-int NUM_TRIMS_PARAM=64;
+int NUM_TRIMS_PARAM=EDGEBITS > 30 ? 96 : 64;
 
 pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 deviceInfo DEVICE_INFO;
