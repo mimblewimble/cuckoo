@@ -20,7 +20,7 @@
 // Cuckoo plugin function implementations for matrix_miner.cpp
 
 int NUM_THREADS_PARAM=1;
-int NUM_TRIMS_PARAM=EDGEBITS > 30 ? 96 : 64;
+int NUM_TRIMS_PARAM=EDGEBITS > 30 ? 96 : 68;
 
 pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 deviceInfo DEVICE_INFO;
@@ -41,8 +41,8 @@ extern "C" int cuckoo_init(){
   PLUGIN_PROPERTY num_trims_prop;
   strcpy(num_trims_prop.name,"NUM_TRIMS\0");
   strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform (will be rounded to be even)\0");
-  num_trims_prop.default_value=64;
-  num_trims_prop.min_value=6;
+  num_trims_prop.default_value=68;
+  num_trims_prop.min_value=68;
   num_trims_prop.max_value=100;
   add_plugin_property(num_trims_prop);
 

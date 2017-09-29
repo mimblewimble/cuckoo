@@ -757,6 +757,7 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+		  if (should_quit) return;
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0xff, NYZ1);
       for (u32 ux = 0 ; ux < NX; ux++) {
@@ -802,6 +803,7 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+		 if(should_quit) return;
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0xff, 2 * NYZ1); // sets each u16 entry to 0xffff
       for (u32 ux = 0 ; ux < NX; ux++) {

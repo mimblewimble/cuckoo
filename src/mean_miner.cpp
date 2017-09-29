@@ -19,7 +19,7 @@ extern "C" int cuckoo_call(char* header_data,
 	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
 
   print_buf("(Mean Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
-
+  printf("Num Trims %d\n", NUM_TRIMS_PARAM);
   u32 range = 1;
 #ifdef SAVEEDGES
   bool showcycle = 1;
