@@ -30,11 +30,15 @@ extern "C" int cuckoo_call(char* header_data,
   u32 timems;
   //char header[HEADERLEN];
   //u32 len;
+  bool allrounds = false;
   //int c;
-
-  /*memset(header, 0, sizeof(header));
- while ((c = getopt (argc, argv, "h:m:n:r:st:x:")) != -1) {
+/*
+  memset(header, 0, sizeof(header));
+  while ((c = getopt (argc, argv, "ah:m:n:r:st:x:")) != -1) {
     switch (c) {
+      case 'a':
+        allrounds = true;
+        break;
       case 'h':
         len = strlen(optarg);
         assert(len <= sizeof(header));
@@ -68,8 +72,8 @@ extern "C" int cuckoo_call(char* header_data,
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
   */
-  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, showcycle);
-   u64 sbytes = ctx.sharedbytes();
+  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, allrounds, showcycle);
+  u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
   int sunit,tunit;
   for (sunit=0; sbytes >= 10240; sbytes>>=10,sunit++) ;
