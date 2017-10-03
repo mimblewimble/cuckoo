@@ -23,8 +23,6 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
-//Just for debug output when printf is squashed
-#include <iostream>
 #include <chrono>
 #include <ctime>
 
@@ -264,7 +262,6 @@ void *cuckoo_process(void *args) {
         if (!cuckoo_internal_ready_for_hash()) continue;
         QueueInput item;
         bool found = INPUT_QUEUE.try_dequeue(item);
-        //std::cout<<"Queue size (approx): "<<INPUT_QUEUE.size_approx()<<std::endl;
         if (found){
             cuckoo_internal_process_hash(item.hash, HASH_LENGTH, item.nonce);
         }
