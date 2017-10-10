@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #ifdef __APPLE__
-#include "osx_barrier.h"
+#include "cuckoo_miner/osx_pthread_barrier.h"
 #endif
 #include <assert.h>
 
