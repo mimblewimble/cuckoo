@@ -17,7 +17,7 @@
 #include <vector>
 #include <bitset>
 #ifdef __APPLE__
-#include "cuckoo_miner/osx_pthread_barrier.h"
+#include "osx_barrier.h"
 #endif
 
 // algorithm/performance parameters

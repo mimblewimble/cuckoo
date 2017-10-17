@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #ifdef __APPLE__
-#include "cuckoo_miner/osx_pthread_barrier.h"
+#include "osx_barrier.h"
 #endif
 
 #include "cuckoo_miner/lean_miner_adds.h"
