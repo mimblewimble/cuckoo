@@ -272,7 +272,7 @@ void *cuckoo_process(void *args) {
         //a user of the lib requests a quit... hopefully shouldn't affect
         //performance too badly
 				//TODO: Fix this busy wait situation without a sleep
-        //usleep(500000);
+        usleep(100000);
     }
     cuckoo_clear_queues();
     processing_finished=true;
