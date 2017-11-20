@@ -224,14 +224,14 @@ void setheadergrin(char* header, const u32 len) {
   }
 };
 
-__global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part, volatile bool* should_quit_internal) {
+__global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part) {
   shrinkingset &alive = ctx->alive;
   twice_set &nonleaf = ctx->nonleaf;
   siphash_keys sip_keys = ctx->sip_keys; // local copy sip context; 2.5% speed gain
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  for (edge_t block = id*32; block < NEDGES && !*should_quit_internal; block += ctx->nthreads*32) {
+  for (edge_t block = id*32; block < NEDGES; block += ctx->nthreads*32) {
     u32 alive32 = alive.block(block);
-    for (edge_t nonce = block-1; alive32 && !*should_quit_internal; ) { // -1 compensates for 1-based ffs
+    for (edge_t nonce = block-1; alive32; ) { // -1 compensates for 1-based ffs
       u32 ffs = __ffs(alive32);
       nonce += ffs; alive32 >>= ffs;
       node_t u = dipnode(sip_keys, nonce, uorv);
@@ -242,14 +242,14 @@ __global__ void count_node_deg(cuckoo_ctx *ctx, u32 uorv, u32 part, volatile boo
   }
 }
 
-__global__ void kill_leaf_edges(cuckoo_ctx *ctx, u32 uorv, u32 part, volatile bool* should_quit_internal) {
+__global__ void kill_leaf_edges(cuckoo_ctx *ctx, u32 uorv, u32 part) {
   shrinkingset &alive = ctx->alive;
   twice_set &nonleaf = ctx->nonleaf;
   siphash_keys sip_keys = ctx->sip_keys;
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  for (edge_t block = id*32; block < NEDGES && !*should_quit_internal; block += ctx->nthreads*32) {
+  for (edge_t block = id*32; block < NEDGES; block += ctx->nthreads*32) {
     u32 alive32 = alive.block(block);
-    for (edge_t nonce = block-1; alive32 && !*should_quit_internal; ) { // -1 compensates for 1-based ffs
+    for (edge_t nonce = block-1; alive32; ) { // -1 compensates for 1-based ffs
       u32 ffs = __ffs(alive32);
       nonce += ffs; alive32 >>= ffs;
       node_t u = dipnode(sip_keys, nonce, uorv);
@@ -351,11 +351,8 @@ extern "C" int cuckoo_call(char* header_data,
   cudaEvent_t start, stop;
   if (checkCudaErrors(cudaEventCreate(&start))!=0) return 0;
   if (checkCudaErrors(cudaEventCreate(&stop))!=0) return 0;
-  bool * should_quit_internal = new bool;
-  *should_quit_internal=false;
 
   cudaMalloc(&d_flag,sizeof(bool));
-  cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
 
   for (int r = 0; r < range; r++) {
     cudaEventRecord(start, NULL);
@@ -367,15 +364,11 @@ extern "C" int cuckoo_call(char* header_data,
       for (u32 uorv = 0; uorv < 2; uorv++) {
         for (u32 part = 0; part <= PART_MASK; part++) {
           if(should_quit) {
-             printf("Should quit 1");
-             *should_quit_internal=true;
-             cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
-             cudaDeviceSynchronize();
              return 0;
           }
           if (checkCudaErrors(cudaMemset(ctx.nonleaf.bits, 0, nodeBytes))!=0) return 0;
-          count_node_deg<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part, d_flag);
-          kill_leaf_edges<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part, d_flag);
+          count_node_deg<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part);
+          kill_leaf_edges<<<nthreads/tpb,tpb >>>(device_ctx, uorv, part);
         }
       }
     }
@@ -391,9 +384,6 @@ extern "C" int cuckoo_call(char* header_data,
 			 if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
        if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
        if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
-       *should_quit_internal=true;
-       cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
-       cudaDeviceSynchronize();
        return 0;
     }
     cudaEventRecord(stop, NULL);
@@ -429,9 +419,6 @@ extern "C" int cuckoo_call(char* header_data,
            if (checkCudaErrors(cudaFree(device_ctx))!=0) return 0;
            if (checkCudaErrors(cudaFree(ctx.alive.bits))!=0) return 0;
            if (checkCudaErrors(cudaFree(ctx.nonleaf.bits))!=0) return 0;
-           *should_quit_internal=true;
-           cudaMemcpy(d_flag,should_quit_internal,1,cudaMemcpyHostToDevice);
-           cudaDeviceSynchronize();
            return 0;
         };
         

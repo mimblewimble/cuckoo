@@ -32,7 +32,7 @@
 
 #include "concurrentqueue.h"
 
-#define SQUASH_OUTPUT 1 
+#define SQUASH_OUTPUT 1
 
 #if SQUASH_OUTPUT
 #define printf(fmt, ...) (0)
@@ -254,16 +254,18 @@ extern "C" void cuckoo_clear_queues(){
 static bool cuckoo_internal_ready_for_hash();
 
 static int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce);
-//static void stop_processing_internal();
 
 void *cuckoo_process(void *args) {
     while(!should_quit){
-        if (!cuckoo_internal_ready_for_hash()) continue;
-        QueueInput item;
-        bool found = INPUT_QUEUE.try_dequeue(item);
-        if (found){
-            cuckoo_internal_process_hash(item.hash, HASH_LENGTH, item.nonce);
-        }
+        while (cuckoo_internal_ready_for_hash()){
+					QueueInput item;
+					bool found = INPUT_QUEUE.try_dequeue(item);
+					if (found){
+						cuckoo_internal_process_hash(item.hash, HASH_LENGTH, item.nonce);
+					} else {
+						break;
+					}
+				}
         //avoid a busy wait type situation
         //Should be done a bit less dumbly, but this is only called when
         //a user of the lib requests a quit... hopefully shouldn't affect
