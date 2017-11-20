@@ -43,11 +43,10 @@ size_t MAX_QUEUE_SIZE=1000;
 bool SINGLE_MODE=true;
 
 u64 timestamp() {
-    using namespace std::chrono;
-    milliseconds ms = duration_cast< milliseconds >(
-		    system_clock::now().time_since_epoch()
-		);
-    return ms.count();
+	using namespace std::chrono;
+	high_resolution_clock::time_point now = high_resolution_clock::now();
+	auto dn = now.time_since_epoch();
+	return dn.count();
 }
 
 /** 
@@ -269,7 +268,7 @@ void *cuckoo_process(void *args) {
         //Should be done a bit less dumbly, but this is only called when
         //a user of the lib requests a quit... hopefully shouldn't affect
         //performance too badly
-        usleep(5000000);
+        usleep(1);
     }
     cuckoo_clear_queues();
     processing_finished=true;
