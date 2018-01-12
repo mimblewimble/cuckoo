@@ -2,6 +2,8 @@
 #include <string.h>
 #include "cuckoo.h"
 
+#include "cuckoo_miner/cuda_miner_adds.h"
+
 // d(evice s)ipnode
 #if (__CUDA_ARCH__  >= 320) // redefine ROTL to use funnel shifter, 3% speed gain
 
@@ -269,12 +271,13 @@ typedef u8 zbucket82[NYZ1*2];
 typedef u16 zbucket16[NTRIMMEDZ];
 typedef u32 zbucket32[NTRIMMEDZ];
 
-#define checkCudaErrors(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+#define checkCudaErrors(ans) ({ int retval; retval = gpuAssert((ans), __FILE__, __LINE__); retval; })
+inline int gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
   if (code != cudaSuccess) {
     fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort) exit(code);
+    if (abort) return code;
   }
+  return 0;
 }
 
 typedef u32 proof[PROOFSIZE];
@@ -304,25 +307,25 @@ public:
     threadsperblock = tpb;
     ntrims   = n_trims;
     showall = show_all;
-    checkCudaErrors(cudaMalloc((void**)&dt, sizeof(edgetrimmer)));
+    if (!checkCudaErrors(cudaMalloc((void**)&dt, sizeof(edgetrimmer)))) return;
     // buckets  = new yzbucket<ZBUCKETSIZE>[NX];
-    checkCudaErrors(cudaMalloc((void**)&buckets, sizeof(zbucket<ZBUCKETSIZE,NZ1,NZ2,NTRIMMEDZ>[NX][NY])));
+    if (!checkCudaErrors(cudaMalloc((void**)&buckets, sizeof(zbucket<ZBUCKETSIZE,NZ1,NZ2,NTRIMMEDZ>[NX][NY])))) return;
     // touch((u8 *)buckets, sizeof(matrix<ZBUCKETSIZE>));
     // tbuckets = new yzbucket<TBUCKETSIZE>[nthreads];
-    checkCudaErrors(cudaMalloc((void**)&tbuckets, nblocks * sizeof(zbucket<TBUCKETSIZE,0,0,0>[NY])));
+    if (!checkCudaErrors(cudaMalloc((void**)&tbuckets, nblocks * sizeof(zbucket<TBUCKETSIZE,0,0,0>[NY])))) return;
     // touch((u8 *)tbuckets, nthreads * sizeof(yzbucket<TBUCKETSIZE>));
     // tdegs   = new zbucket82[nthreads];
-    checkCudaErrors(cudaMalloc((void**)&tdegs, nblocks * sizeof(zbucket82)));
+    if (!checkCudaErrors(cudaMalloc((void**)&tdegs, nblocks * sizeof(zbucket82)))) return;
     // tcounts = new offset_t[nthreads];
-    checkCudaErrors(cudaMalloc((void**)&tcounts, nblocks * sizeof(offset_t)));
-    checkCudaErrors(cudaMalloc((void**)&uvnodes, PROOFSIZE * 2 * sizeof(u32)));
+    if (!checkCudaErrors(cudaMalloc((void**)&tcounts, nblocks * sizeof(offset_t)))) return;
+    if (!checkCudaErrors(cudaMalloc((void**)&uvnodes, PROOFSIZE * 2 * sizeof(u32)))) return;
   }
   ~edgetrimmer() {
-    checkCudaErrors(cudaFree(buckets));
-    checkCudaErrors(cudaFree(tbuckets));
-    checkCudaErrors(cudaFree(tdegs));
-    checkCudaErrors(cudaFree(tcounts));
-    checkCudaErrors(cudaFree(uvnodes));
+    if (!checkCudaErrors(cudaFree(buckets))) return;
+    if (!checkCudaErrors(cudaFree(tbuckets))) return;
+    if (!checkCudaErrors(cudaFree(tdegs))) return;
+    if (!checkCudaErrors(cudaFree(tcounts))) return;
+    if (!checkCudaErrors(cudaFree(uvnodes))) return;
   }
   __device__ offset_t count() const {
     offset_t cnt = 0;
@@ -818,7 +821,7 @@ public:
     }
   }
 
-  void trim();
+  int trim();
 };
 
 __global__ void _genUnodes(edgetrimmer *et, const u32 uorv) {
@@ -864,16 +867,16 @@ __global__ void _recoveredges1(edgetrimmer *et) {
 #define EXPANDROUND COMPRESSROUND
 #endif
 
-  void edgetrimmer::trim() {
+  int edgetrimmer::trim() {
     cudaMemcpy(dt, this, sizeof(edgetrimmer), cudaMemcpyHostToDevice);
     cudaEvent_t start, stop;
-    checkCudaErrors(cudaEventCreate(&start));
-    checkCudaErrors(cudaEventCreate(&stop));
+    if (!checkCudaErrors(cudaEventCreate(&start))) return 0;
+    if (!checkCudaErrors(cudaEventCreate(&stop))) return 0;
     float duration;
 
     cudaEventRecord(start, NULL);
     _genUnodes<<<nblocks,threadsperblock>>>(dt, 0);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -882,7 +885,7 @@ __global__ void _recoveredges1(edgetrimmer *et) {
     cudaEventRecord(start, NULL);
     cudaEventRecord(start, NULL);
     _genVnodes<<<nblocks,threadsperblock>>>(dt, 1);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -908,12 +911,12 @@ __global__ void _recoveredges1(edgetrimmer *et) {
       } else if (round==COMPRESSROUND) {
         _trimrename<BIGGERSIZE, sizeof(u32), false><<<nblocks,threadsperblock>>>(dt, round+1);
       } else _trimedges1<false><<<nblocks,threadsperblock>>>(dt, round+1);
-      checkCudaErrors(cudaDeviceSynchronize());
+      if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
     }
     _trimrename1<true ><<<nblocks,threadsperblock>>>(dt, ntrims-2);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
     _trimrename1<false><<<nblocks,threadsperblock>>>(dt, ntrims-1);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -949,6 +952,10 @@ public:
   void setheadernonce(char* const headernonce, const u32 len, const u32 nonce) {
     ((u32 *)headernonce)[len/sizeof(u32)-1] = htole32(nonce); // place nonce at end
     setheader(headernonce, len, &trimmer->sip_keys);
+    sols.clear();
+  }
+  void setheadergrin(const char* header, const u32 len) {
+    setheader(header, len, &trimmer->sip_keys);
     sols.clear();
   }
   ~solver_ctx() {
@@ -1045,10 +1052,10 @@ public:
   }
 
   int solve() {
-    trimmer->trim();
+    if (!trimmer->trim()) return 0;
     buckets = new zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY];
     printf("start cudaMemcpy\n");
-    checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY]), cudaMemcpyDeviceToHost));
+    if (!checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY]), cudaMemcpyDeviceToHost))) return 0;
     printf("end cudaMemcpy\n");
     cuckoo = new u32[CUCKOO_SIZE];
     memset(cuckoo, (int)CUCKOO_NIL, CUCKOO_SIZE * sizeof(u32));
@@ -1065,7 +1072,11 @@ public:
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
-int main(int argc, char **argv) {
+extern "C" int cuckoo_call(char* header_data,
+                           int header_length,
+                           u32* sol_nonces ) {
+  u64 start_time=timestamp();
+  int nthreads = NUM_THREADS_PARAM;
   int nblocks = 64;
   int ntrims = 68;
   int tpb = 1;
@@ -1078,7 +1089,7 @@ int main(int argc, char **argv) {
   u32 len;
   int c;
 
-  memset(header, 0, sizeof(header));
+  /*memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "ad:h:n:m:r:t:p:x:")) != -1) {
     switch (c) {
       case 'a':
@@ -1117,9 +1128,9 @@ int main(int argc, char **argv) {
         range = atoi(optarg);
         break;
     }
-  }
+  }*/
 
-  int nDevices;
+  /*int nDevices;
   cudaGetDeviceCount(&nDevices);
   assert(device < nDevices);
   cudaDeviceProp prop;
@@ -1132,7 +1143,7 @@ int main(int argc, char **argv) {
   printf("  Memory Clock Rate (KHz): %d\n", prop.memoryClockRate);
   printf("  Memory Bus Width (bits): %d\n", prop.memoryBusWidth);
   printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
-  cudaSetDevice(device);
+  cudaSetDevice(device);*/
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
@@ -1152,15 +1163,18 @@ int main(int argc, char **argv) {
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length);
     printf("nonce %d k0 k1 %llx %llx\n", nonce+r, ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
 
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
       u32* prf = &ctx.sols[s * PROOFSIZE];
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      for (u32 i = 0; i < PROOFSIZE; i++) {
+        sol_nonces[i] = prf[i];
         printf(" %jx", (uintmax_t)prf[i]);
+      }
       printf("\n");
       int pow_rc = verify(prf, &ctx.trimmer->sip_keys);
       if (pow_rc == POW_OK) {
@@ -1173,10 +1187,16 @@ int main(int argc, char **argv) {
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
+      //Just return first solution for now
+      // TODO: Probably skip verify above
+      return 1;
     }
     sumnsols += nsols;
   }
   printf("%d total solutions\n", sumnsols);
+  if (SINGLE_MODE){
+      update_stats(0,start_time);
+  }
 
   return 0;
 }
