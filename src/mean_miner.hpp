@@ -160,12 +160,24 @@ const static u32 ZBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE0;
 #endif
 const static u32 TBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE; 
 
+/*
+// make 128 byte waves
+#ifndef WAVESIZE
+#define WAVESIZE 25
+#endif
+
+struct wave {
+  u32 words[WAVESIZE];
+  u8 bytes[WAVESIZE];
+}*/;
+
 template<u32 BUCKETSIZE>
 struct zbucket {
   u32 size;
   const static u32 RENAMESIZE = 2*NZ2 + 2*(COMPRESSROUND ? NZ1 : 0);
-  alignas(16) union {
+  union alignas(16) {
     u8 bytes[BUCKETSIZE];
+    // wave waves[BUCKETSIZE/sizeof(wave)];
     struct {
 #ifdef SAVEEDGES
       u32 words[BUCKETSIZE/sizeof(u32) - RENAMESIZE - NTRIMMEDZ];
@@ -253,6 +265,21 @@ public:
   bool showall;
   pthread_barrier_t barry;
 
+#if NSIPHASH > 4
+
+  void* operator new(size_t size) noexcept {
+    void* newobj;
+    int tmp = posix_memalign(&newobj, NSIPHASH * sizeof(u32), sizeof(edgetrimmer));
+
+    if (tmp != 0) {
+      return nullptr;
+    }
+
+    return newobj;
+  }
+
+#endif
+
   void touch(u8 *p, const offset_t n) {
     for (offset_t i=0; i<n; i+=4096)
       *(u32 *)(p+i) = 0;
@@ -310,11 +337,7 @@ public:
 #if NSIPHASH == 8
     static const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
     static const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
-    const __m256i vinit = _mm256_set_epi64x(
-      sip_keys.k1^0x7465646279746573ULL,
-      sip_keys.k0^0x6c7967656e657261ULL,
-      sip_keys.k1^0x646f72616e646f6dULL,
-      sip_keys.k0^0x736f6d6570736575ULL);
+    const __m256i vinit = _mm256_load_si256((__m256i *)&sip_keys);
     __m256i v0, v1, v2, v3, v4, v5, v6, v7;
     const u32 e2 = 2 * edge + uorv;
     __m256i vpacket0 = _mm256_set_epi64x(e2+6, e2+4, e2+2, e2+0);
@@ -427,13 +450,9 @@ public:
     u64 rdtsc0, rdtsc1;
   
 #if NSIPHASH == 8
-    const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
-    const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
-    const __m256i vinit = _mm256_set_epi64x(
-      sip_keys.k1^0x7465646279746573ULL,
-      sip_keys.k0^0x6c7967656e657261ULL,
-      sip_keys.k1^0x646f72616e646f6dULL,
-      sip_keys.k0^0x736f6d6570736575ULL);
+    static const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
+    static const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
+    const __m256i vinit = _mm256_load_si256((__m256i *)&sip_keys);
     __m256i vpacket0, vpacket1, vhi0, vhi1;
     __m256i v0, v1, v2, v3, v4, v5, v6, v7;
 #endif
@@ -647,7 +666,7 @@ public:
     }
     rdtsc1 = __rdtsc();
     if (showall || (!id && !(round & (round+1))))
-      printf("trimedges round %2d size %u rdtsc: %lu\n", round, sumsize/DSTSIZE, rdtsc1-rdtsc0);
+      printf("trimedges id %d round %2d size %u rdtsc: %lu\n", id, round, sumsize/DSTSIZE, rdtsc1-rdtsc0);
     tcounts[id] = sumsize/DSTSIZE;
   }
 
@@ -662,7 +681,7 @@ public:
     u64 rdtsc0, rdtsc1;
     indexer<ZBUCKETSIZE> dst;
     indexer<TBUCKETSIZE> small;
-    static u32 maxnnid=0;
+    u32 maxnnid = 0;
   
     rdtsc0 = __rdtsc();
     offset_t sumsize = 0;
@@ -754,7 +773,7 @@ public:
       sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
     }
     rdtsc1 = __rdtsc();
-    if (showall || !id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize/DSTSIZE, rdtsc1-rdtsc0, maxnnid);
+    if (showall || !id) printf("trimrename id %d round %2d size %u rdtsc: %lu maxnnid %d\n", id, round, sumsize/DSTSIZE, rdtsc1-rdtsc0, maxnnid);
     assert(maxnnid < NYZ1);
     tcounts[id] = sumsize/DSTSIZE;
   }
@@ -800,7 +819,7 @@ public:
     }
     rdtsc1 = __rdtsc();
     if (showall || (!id && !(round & (round+1))))
-      printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize/sizeof(u32), rdtsc1-rdtsc0);
+      printf("trimedges1 id %d round %2d size %u rdtsc: %lu\n", id, round, sumsize/sizeof(u32), rdtsc1-rdtsc0);
     tcounts[id] = sumsize/sizeof(u32);
   }
 
@@ -808,7 +827,7 @@ public:
   void trimrename1(const u32 id, const u32 round) {
     u64 rdtsc0, rdtsc1;
     indexer<ZBUCKETSIZE> dst;
-    static u32 maxnnid=0;
+    u32 maxnnid = 0;
   
     rdtsc0 = __rdtsc();
     offset_t sumsize = 0;
@@ -860,7 +879,7 @@ public:
       sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
     }
     rdtsc1 = __rdtsc();
-    if (showall || !id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize/sizeof(u32), rdtsc1-rdtsc0, maxnnid);
+    if (showall || !id) printf("trimrename1 id %d round %2d size %u rdtsc: %lu maxnnid %d\n", id, round, sumsize/sizeof(u32), rdtsc1-rdtsc0, maxnnid);
     assert(maxnnid < NYZ2);
     tcounts[id] = sumsize/sizeof(u32);
   }
@@ -1080,7 +1099,7 @@ public:
         if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = trimmer->buckets[ux][vx];
         u32 *readbig = zb.words, *endreadbig = readbig + zb.size/sizeof(u32);
-// printf("id %d vx %d ux %d size %u\n", id, vx, ux, zb.size/4);
+// printf("vx %d ux %d size %u\n", vx, ux, zb.size/4);
         for (; readbig < endreadbig; readbig++) {
 // bit        21..11     10...0
 // write      UYYZZZ'    VYYZZ'   within VX partition
@@ -1133,11 +1152,7 @@ public:
     u32 edge = starty << YZBITS, endedge = edge + NYZ;
   #if NSIPHASH == 8
     static const __m256i vnodemask = {EDGEMASK, EDGEMASK, EDGEMASK, EDGEMASK};
-    const __m256i vinit = _mm256_set_epi64x(
-      trimmer->sip_keys.k1^0x7465646279746573ULL,
-      trimmer->sip_keys.k0^0x6c7967656e657261ULL,
-      trimmer->sip_keys.k1^0x646f72616e646f6dULL,
-      trimmer->sip_keys.k0^0x736f6d6570736575ULL);
+    const __m256i vinit = _mm256_load_si256((__m256i *)&trimmer->sip_keys);
     __m256i v0, v1, v2, v3, v4, v5, v6, v7;
     const u32 e2 = 2 * edge;
     __m256i vpacket0 = _mm256_set_epi64x(e2+6, e2+4, e2+2, e2+0);
