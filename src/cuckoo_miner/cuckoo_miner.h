@@ -55,7 +55,7 @@ u64 timestamp() {
  * kept very simple for now
  */
 
-#define MAX_NUM_PROPERTIES 16
+#define MAX_NUM_PROPERTIES 32
 #define MAX_PROPERTY_NAME_LENGTH 64
 #define MAX_PROPERTY_DESC_LENGTH 256
 
@@ -64,6 +64,7 @@ u64 timestamp() {
 #define PROPERTY_RETURN_OUTSIDE_RANGE 2
 #define PROPERTY_RETURN_BUFFER_TOO_SMALL 3
 #define PROPERTY_RETURN_TOO_LONG 4
+#define PROPERTY_RETURN_INVALID_DEVICE 5
 
 int allocated_properties=0;
 
@@ -73,6 +74,7 @@ struct PLUGIN_PROPERTY {
     u32 default_value;
     u32 min_value;
     u32 max_value;
+    bool is_per_device;
 };
 
 PLUGIN_PROPERTY PROPS[MAX_NUM_PROPERTIES];

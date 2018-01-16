@@ -23,9 +23,6 @@ extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            u32* sol_nonces);
 
-int NUM_THREADS_PARAM=16384;
-int NUM_TRIMS_PARAM=32;
-
 pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define MAX_DEVICES 32
@@ -44,6 +41,11 @@ typedef class cudaDeviceInfo {
 
     bool threw_error;
 
+    //Store parameters per device
+    int num_blocks_param;
+    int threads_per_block_param;
+    int use_device_param;
+
     cudaDeviceInfo();
 } CudaDeviceInfo;
 
@@ -54,6 +56,9 @@ cudaDeviceInfo::cudaDeviceInfo(){
     last_end_time=0;
     last_solution_time=0;
     iterations_completed=0;
+    num_blocks_param=64;
+    threads_per_block_param=1;
+    use_device_param=1;
     threw_error=false;
 }
 
@@ -84,7 +89,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"in_use\":%d,\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         //TODO: Meaningful return code
@@ -101,7 +106,8 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
         int last_written=snprintf(prop_string+last_write_pos, 
                               remaining, 
                               device_stat_json, DEVICE_INFO[i].device_id, 
-                              DEVICE_INFO[i].properties.name, DEVICE_INFO[i].last_start_time,
+                              DEVICE_INFO[i].properties.name, DEVICE_INFO[i].use_device_param, 
+                              DEVICE_INFO[i].last_start_time,
                               DEVICE_INFO[i].last_end_time, DEVICE_INFO[i].last_solution_time,
 			      DEVICE_INFO[i].iterations_completed);
         remaining-=last_written;
@@ -136,7 +142,7 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 
 u32 next_free_device_id(){
     for (int i=0;i<NUM_DEVICES;i++){
-    	if (!DEVICE_INFO[i].is_busy&&!DEVICE_INFO[i].threw_error){
+    	if (!DEVICE_INFO[i].is_busy&&!DEVICE_INFO[i].threw_error&&DEVICE_INFO[i].use_device_param){
 	      return i;
 		  }
     }
@@ -149,28 +155,42 @@ u32 next_free_device_id(){
  */
 
 extern "C" int cuckoo_init(){
+  populate_device_info();
 	allocated_properties=0;
-  PLUGIN_PROPERTY num_trims_prop;
-  strcpy(num_trims_prop.name,"NUM_TRIMS\0");
-  strcpy(num_trims_prop.description,"The maximum number of trim rounds to perform\0");
-  num_trims_prop.default_value=32;
-  num_trims_prop.min_value=5;
-  num_trims_prop.max_value=100;
-  add_plugin_property(num_trims_prop);
 
-  NUM_TRIMS_PARAM = num_trims_prop.default_value;
+  PLUGIN_PROPERTY device_list_prop;
+  strcpy(device_list_prop.name,"USE_DEVICE\0");
+  strcpy(device_list_prop.description,"If set, include this device while mining parallel GPUs\0");
+  device_list_prop.default_value=1;
+  device_list_prop.min_value=0;
+  device_list_prop.max_value=1;
+  device_list_prop.is_per_device=true;
+  add_plugin_property(device_list_prop);
+
+  PLUGIN_PROPERTY num_blocks_prop;
+  strcpy(num_blocks_prop.name,"NUM_BLOCKS\0");
+  strcpy(num_blocks_prop.description,"Number of blocks (buckets) to allocate\0");
+  num_blocks_prop.default_value=64;
+  num_blocks_prop.min_value=1;
+  num_blocks_prop.max_value=1024;
+  num_blocks_prop.is_per_device=true;
+  add_plugin_property(num_blocks_prop);
 
   PLUGIN_PROPERTY num_threads_prop;
-  strcpy(num_threads_prop.name,"NUM_THREADS\0");
-  strcpy(num_threads_prop.description,"The number of threads to use\0");
-  num_threads_prop.default_value=16384;
+  strcpy(num_threads_prop.name,"THREADS_PER_BLOCK\0");
+  strcpy(num_threads_prop.description,"The number of threads per block\0");
+  num_threads_prop.default_value=1;
   num_threads_prop.min_value=1;
-  num_threads_prop.max_value=65535;
+  num_threads_prop.max_value=256;
+  num_threads_prop.is_per_device=true;
   add_plugin_property(num_threads_prop);
 
-  NUM_THREADS_PARAM = num_threads_prop.default_value;
+  for (int i=0;i<NUM_DEVICES;i++){
+     DEVICE_INFO[i].use_device_param = device_list_prop.default_value;
+     DEVICE_INFO[i].num_blocks_param = num_blocks_prop.default_value;
+     DEVICE_INFO[i].threads_per_block_param = num_threads_prop.default_value;
+  }
 
-  populate_device_info();
   return PROPERTY_RETURN_OK;
 }
 
@@ -211,42 +231,58 @@ extern "C" int cuckoo_parameter_list(char *params_out_buf,
 
 extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
+                                     int device_id,
                                      int value){
   
   if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
+  if (device_id > NUM_DEVICES-1) return PROPERTY_RETURN_INVALID_DEVICE;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
   snprintf(compare_buf,param_name_len+1,"%s", param_name);
-  if (strcmp(compare_buf,"NUM_TRIMS")==0){
+  if (strcmp(compare_buf,"USE_DEVICE")==0){
     if (value>=PROPS[0].min_value && value<=PROPS[0].max_value){
-       NUM_TRIMS_PARAM=value;
+       DEVICE_INFO[device_id].use_device_param=value;
        return PROPERTY_RETURN_OK;
     } else {
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  if (strcmp(compare_buf,"NUM_THREADS")==0){
+  if (strcmp(compare_buf,"NUM_BLOCKS")==0){
     if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
-       NUM_THREADS_PARAM=value;
+       DEVICE_INFO[device_id].num_blocks_param=value;
        return PROPERTY_RETURN_OK;
     } else {
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  return PROPERTY_RETURN_NOT_FOUND;                                
+  if (strcmp(compare_buf,"THREADS_PER_BLOCK")==0){
+    if (value>=PROPS[2].min_value && value<=PROPS[2].max_value){
+       DEVICE_INFO[device_id].threads_per_block_param=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  return PROPERTY_RETURN_NOT_FOUND;
 }
 
 extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
+                                     int device_id,
                                      int* value){
   if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
+  if (device_id > NUM_DEVICES-1) return PROPERTY_RETURN_INVALID_DEVICE;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
   snprintf(compare_buf,param_name_len+1,"%s", param_name);
-  if (strcmp(compare_buf,"NUM_TRIMS")==0){
-       *value = NUM_TRIMS_PARAM;
+  if (strcmp(compare_buf,"USE_DEVICE")==0){
+       *value = DEVICE_INFO[device_id].use_device_param;
        return PROPERTY_RETURN_OK;
   }
-  if (strcmp(compare_buf,"NUM_THREADS")==0){
-       *value = NUM_THREADS_PARAM;
+  if (strcmp(compare_buf,"NUM_BLOCKS")==0){
+       *value = DEVICE_INFO[device_id].num_blocks_param;
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"THREADS_PER_BLOCK")==0){
+       *value = DEVICE_INFO[device_id].threads_per_block_param;
        return PROPERTY_RETURN_OK;
   }
   return PROPERTY_RETURN_NOT_FOUND;
@@ -255,7 +291,7 @@ extern "C" int cuckoo_get_parameter(char *param_name,
 bool cuckoo_internal_ready_for_hash(){
   //just return okay if a device is flagged as free
   for (int i=0;i<NUM_DEVICES;i++){
-    if (!DEVICE_INFO[i].is_busy && !DEVICE_INFO[i].threw_error){
+    if (!DEVICE_INFO[i].is_busy && !DEVICE_INFO[i].threw_error && DEVICE_INFO[i].use_device_param){
        return true;
     }
   }

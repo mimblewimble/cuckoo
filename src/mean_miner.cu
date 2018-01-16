@@ -1084,8 +1084,6 @@ extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            u32* sol_nonces ) {
   u64 start_time=timestamp();
-	printf("Start time: %lld\n", start_time);
-  int nthreads = NUM_THREADS_PARAM;
   int nblocks = 64;
   int ntrims = 68;
   int tpb = 1;
@@ -1156,8 +1154,8 @@ extern "C" int cuckoo_call(char* header_data,
 
 	int device_id;
 	cudaGetDevice(&device_id);
-	nblocks=128;
-	tpb=8;
+	nblocks = DEVICE_INFO[device_id].num_blocks_param;
+	tpb = DEVICE_INFO[device_id].threads_per_block_param;
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)

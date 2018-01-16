@@ -103,6 +103,7 @@ extern "C" int cuckoo_parameter_list(char *params_out_buf,
 
 extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
+                                     int device_id,
                                      int value){
   
   if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
@@ -130,6 +131,7 @@ extern "C" int cuckoo_set_parameter(char *param_name,
 
 extern "C" int cuckoo_get_parameter(char *param_name,
                                      int param_name_len,
+                                     int device_id,
                                      int* value){
   if (param_name_len > MAX_PROPERTY_NAME_LENGTH) return PROPERTY_RETURN_TOO_LONG;
   char compare_buf[MAX_PROPERTY_NAME_LENGTH];
@@ -222,7 +224,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"in_use\":\"1\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         return PROPERTY_RETURN_BUFFER_TOO_SMALL;
