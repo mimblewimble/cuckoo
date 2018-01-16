@@ -222,7 +222,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%d,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         return PROPERTY_RETURN_BUFFER_TOO_SMALL;

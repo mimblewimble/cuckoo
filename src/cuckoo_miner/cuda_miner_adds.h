@@ -42,6 +42,8 @@ typedef class cudaDeviceInfo {
     u64 last_solution_time;
     u32 iterations_completed;
 
+    bool threw_error;
+
     cudaDeviceInfo();
 } CudaDeviceInfo;
 
@@ -52,6 +54,7 @@ cudaDeviceInfo::cudaDeviceInfo(){
     last_end_time=0;
     last_solution_time=0;
     iterations_completed=0;
+    threw_error=false;
 }
 
 CudaDeviceInfo DEVICE_INFO[MAX_DEVICES];
@@ -81,7 +84,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%d,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         //TODO: Meaningful return code
@@ -89,7 +92,12 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     }
     prop_string[0]='[';
     int last_write_pos=1;
-    for (int i=0;i<NUM_DEVICES;i++){
+    int devices=NUM_DEVICES;
+		if (SINGLE_MODE){
+			devices=1;
+		}
+
+    for (int i=0;i<devices;i++){
         int last_written=snprintf(prop_string+last_write_pos, 
                               remaining, 
                               device_stat_json, DEVICE_INFO[i].device_id, 
@@ -104,7 +112,7 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
             return PROPERTY_RETURN_BUFFER_TOO_SMALL;
         }
         //write comma
-        if (i<NUM_DEVICES-1){
+        if (i<devices-1){
             //overwrite trailing \0 in this case
             prop_string[last_write_pos++]=',';
         } 
@@ -128,9 +136,9 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 
 u32 next_free_device_id(){
     for (int i=0;i<NUM_DEVICES;i++){
-    	if (!DEVICE_INFO[i].is_busy){
-	    return i;
-	}
+    	if (!DEVICE_INFO[i].is_busy&&!DEVICE_INFO[i].threw_error){
+	      return i;
+		  }
     }
     return -1;
 }
@@ -247,7 +255,7 @@ extern "C" int cuckoo_get_parameter(char *param_name,
 bool cuckoo_internal_ready_for_hash(){
   //just return okay if a device is flagged as free
   for (int i=0;i<NUM_DEVICES;i++){
-    if (!DEVICE_INFO[i].is_busy){
+    if (!DEVICE_INFO[i].is_busy && !DEVICE_INFO[i].threw_error){
        return true;
     }
   }
@@ -268,6 +276,12 @@ void update_stats(u32 device_id, u64 start_time) {
   DEVICE_INFO[device_id].last_start_time; 
   DEVICE_INFO[device_id].is_busy=false;
   DEVICE_INFO[device_id].iterations_completed++;
+  pthread_mutex_unlock(&device_info_mutex);
+}
+
+void mark_device_error(u32 device_id) {
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO[device_id].threw_error = true;
   pthread_mutex_unlock(&device_info_mutex);
 }
 

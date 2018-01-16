@@ -273,8 +273,13 @@ typedef u32 zbucket32[NTRIMMEDZ];
 
 #define checkCudaErrors(ans) ({ int retval; retval = gpuAssert((ans), __FILE__, __LINE__); retval; })
 inline int gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-  if (code != cudaSuccess) {
-    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+  int device_id;
+  cudaGetDevice(&device_id);
+	//Only spit this to logs once, then flag device to stop trying
+  if (code != cudaSuccess && !DEVICE_INFO[device_id].threw_error) {
+    fprintf(stderr,"Device %d GPUassert: %s %s %d\n", device_id, cudaGetErrorString(code), file, line);
+    cudaDeviceReset();
+    mark_device_error(device_id);
     if (abort) return code;
   }
   return 0;
@@ -307,25 +312,25 @@ public:
     threadsperblock = tpb;
     ntrims   = n_trims;
     showall = show_all;
-    if (!checkCudaErrors(cudaMalloc((void**)&dt, sizeof(edgetrimmer)))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&dt, sizeof(edgetrimmer)))) return;
     // buckets  = new yzbucket<ZBUCKETSIZE>[NX];
-    if (!checkCudaErrors(cudaMalloc((void**)&buckets, sizeof(zbucket<ZBUCKETSIZE,NZ1,NZ2,NTRIMMEDZ>[NX][NY])))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&buckets, sizeof(zbucket<ZBUCKETSIZE,NZ1,NZ2,NTRIMMEDZ>[NX][NY])))) return;
     // touch((u8 *)buckets, sizeof(matrix<ZBUCKETSIZE>));
     // tbuckets = new yzbucket<TBUCKETSIZE>[nthreads];
-    if (!checkCudaErrors(cudaMalloc((void**)&tbuckets, nblocks * sizeof(zbucket<TBUCKETSIZE,0,0,0>[NY])))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&tbuckets, nblocks * sizeof(zbucket<TBUCKETSIZE,0,0,0>[NY])))) return;
     // touch((u8 *)tbuckets, nthreads * sizeof(yzbucket<TBUCKETSIZE>));
     // tdegs   = new zbucket82[nthreads];
-    if (!checkCudaErrors(cudaMalloc((void**)&tdegs, nblocks * sizeof(zbucket82)))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&tdegs, nblocks * sizeof(zbucket82)))) return;
     // tcounts = new offset_t[nthreads];
-    if (!checkCudaErrors(cudaMalloc((void**)&tcounts, nblocks * sizeof(offset_t)))) return;
-    if (!checkCudaErrors(cudaMalloc((void**)&uvnodes, PROOFSIZE * 2 * sizeof(u32)))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&tcounts, nblocks * sizeof(offset_t)))) return;
+    if (checkCudaErrors(cudaMalloc((void**)&uvnodes, PROOFSIZE * 2 * sizeof(u32)))) return;
   }
   ~edgetrimmer() {
-    if (!checkCudaErrors(cudaFree(buckets))) return;
-    if (!checkCudaErrors(cudaFree(tbuckets))) return;
-    if (!checkCudaErrors(cudaFree(tdegs))) return;
-    if (!checkCudaErrors(cudaFree(tcounts))) return;
-    if (!checkCudaErrors(cudaFree(uvnodes))) return;
+    checkCudaErrors(cudaFree(buckets));
+    checkCudaErrors(cudaFree(tbuckets));
+    checkCudaErrors(cudaFree(tdegs));
+    checkCudaErrors(cudaFree(tcounts));
+    checkCudaErrors(cudaFree(uvnodes));
   }
   __device__ offset_t count() const {
     offset_t cnt = 0;
@@ -870,13 +875,13 @@ __global__ void _recoveredges1(edgetrimmer *et) {
   int edgetrimmer::trim() {
     cudaMemcpy(dt, this, sizeof(edgetrimmer), cudaMemcpyHostToDevice);
     cudaEvent_t start, stop;
-    if (!checkCudaErrors(cudaEventCreate(&start))) return 0;
-    if (!checkCudaErrors(cudaEventCreate(&stop))) return 0;
+    if (checkCudaErrors(cudaEventCreate(&start))) return 0;
+    if (checkCudaErrors(cudaEventCreate(&stop))) return 0;
     float duration;
 
     cudaEventRecord(start, NULL);
     _genUnodes<<<nblocks,threadsperblock>>>(dt, 0);
-    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -885,7 +890,7 @@ __global__ void _recoveredges1(edgetrimmer *et) {
     cudaEventRecord(start, NULL);
     cudaEventRecord(start, NULL);
     _genVnodes<<<nblocks,threadsperblock>>>(dt, 1);
-    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -911,12 +916,12 @@ __global__ void _recoveredges1(edgetrimmer *et) {
       } else if (round==COMPRESSROUND) {
         _trimrename<BIGGERSIZE, sizeof(u32), false><<<nblocks,threadsperblock>>>(dt, round+1);
       } else _trimedges1<false><<<nblocks,threadsperblock>>>(dt, round+1);
-      if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
+      if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     }
     _trimrename1<true ><<<nblocks,threadsperblock>>>(dt, ntrims-2);
-    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     _trimrename1<false><<<nblocks,threadsperblock>>>(dt, ntrims-1);
-    if (!checkCudaErrors(cudaDeviceSynchronize())) return 0;
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
@@ -1055,7 +1060,10 @@ public:
     if (!trimmer->trim()) return 0;
     buckets = new zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY];
     printf("start cudaMemcpy\n");
-    if (!checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY]), cudaMemcpyDeviceToHost))) return 0;
+    if (checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY]), cudaMemcpyDeviceToHost))) {
+        delete[] buckets;
+        return 0;
+    }
     printf("end cudaMemcpy\n");
     cuckoo = new u32[CUCKOO_SIZE];
     memset(cuckoo, (int)CUCKOO_NIL, CUCKOO_SIZE * sizeof(u32));
@@ -1076,6 +1084,7 @@ extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            u32* sol_nonces ) {
   u64 start_time=timestamp();
+	printf("Start time: %lld\n", start_time);
   int nthreads = NUM_THREADS_PARAM;
   int nblocks = 64;
   int ntrims = 68;
@@ -1145,6 +1154,11 @@ extern "C" int cuckoo_call(char* header_data,
   printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
   cudaSetDevice(device);*/
 
+	int device_id;
+	cudaGetDevice(&device_id);
+	nblocks=128;
+	tpb=8;
+
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
@@ -1189,12 +1203,16 @@ extern "C" int cuckoo_call(char* header_data,
       }
       //Just return first solution for now
       // TODO: Probably skip verify above
+      if (SINGLE_MODE){
+         update_stats(0, start_time);
+      }
       return 1;
     }
     sumnsols += nsols;
   }
   printf("%d total solutions\n", sumnsols);
   if (SINGLE_MODE){
+  printf("single mode\n");
       update_stats(0,start_time);
   }
 
