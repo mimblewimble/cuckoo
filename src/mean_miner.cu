@@ -1095,9 +1095,9 @@ public:
 
   int solve() {
     if (!trimmer->trim()) return 0;
-    buckets = new zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY];
+    buckets = new zbucket<Z2BUCKETSIZE,0,0>[NX][NY];
     printf("start cudaMemcpy\n");
-    if (checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0,0>[NX][NY]), cudaMemcpyDeviceToHost))) {
+    if (checkCudaErrors(cudaMemcpy(buckets, trimmer->tbuckets, sizeof(zbucket<Z2BUCKETSIZE,0,0>[NX][NY]), cudaMemcpyDeviceToHost))) {
         delete[] buckets;
         return 0;
     }
