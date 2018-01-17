@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "cuckoo.h"
+#include <sys/time.h>
 
 #include "cuckoo_miner/cuda_miner_adds.h"
 
@@ -108,6 +109,10 @@ __device__ node_t dipnode(siphash_keys &keys, edge_t nce, u32 uorv) {
 // size in bytes of a small bucket entry
 #define SMALLSIZE BIGSIZE
 
+#ifndef REPORTROUNDS
+#define REPORTROUNDS (COMPRESSROUND+4)
+#endif
+
 // initial entries could be smaller at percent or two slowdown
 #ifndef BIGSIZE0
 #define BIGSIZE0 BIGSIZE
@@ -200,19 +205,8 @@ class twice_set {
 public:
   u32 bits[TWICE_WORDS];
   __device__ void reset() {
-#ifdef INTERLEAVE
-    for (u32 b = threadIdx.x; b < TWICE_WORDS; b+=blockDim.x)
+    for (u32 b = threadIdx.x; b < TWICE_WORDS; b += blockDim.x)
       bits[b] = 0;
-#else
-#ifdef MEMSET
-    memset(bits+TWICE_WORDS*threadIdx.x/blockDim.x, 0, TWICE_WORDS*sizeof(u32)/blockDim.x);
-#else
-    u32    b = TWICE_WORDS *  threadIdx.x    / blockDim.x;
-    u32 endb = TWICE_WORDS * (threadIdx.x+1) / blockDim.x;
-    for (; b < endb; b++)
-      bits[b] = 0;
-#endif
-#endif
   }
   __device__ void set(node_t u) {
     node_t idx = u/16;
@@ -635,15 +629,8 @@ public:
       u32 *names = tnames[blockIdx.x];
       u32 nrenames = threadIdx.x;
       for (u32 vy = 0 ; vy < NY; vy++) {
-#ifdef INTERLEAVE
-        for (u32 z = threadIdx.x; z < NZ; z+=blockDim.x)
+        for (u32 z = threadIdx.x; z < NZ; z += blockDim.x)
           names[z] = NONAME;
-#else
-        u32    z = NZ *  threadIdx.x    / blockDim.x;
-        u32 endz = NZ * (threadIdx.x+1) / blockDim.x;
-        for (; z < endz; z++)
-          names[z] = NONAME;
-#endif
         degs.reset();
         __syncthreads();
         u8    *readsmall = tbuckets[blockIdx.x][vy].bytes, *endreadsmall = readsmall + tbuckets[blockIdx.x][vy].size;
@@ -659,7 +646,7 @@ public:
 // bit            36...30     29...15     14..0
 // read           VXXXXXX     VYYYZZ'     UZZZZ   within UX UY partition  if !TRIMONV
           const u64 e = readbig<SRCSIZE>(rdsmall); //  & SRCSLOTMASK;
-	  const u32 lag = SRCPREFMASK2 >> 9;
+	  const u32 lag = SRCPREFMASK2 >> 2;
           if (TRIMONV)
             ux += (((u32)(e >> YZZBITS) - ux + lag) & SRCPREFMASK2) - lag;
           else ux = e >> YZZ1BITS;
@@ -698,28 +685,31 @@ public:
 
   template <bool TRIMONV>
   __device__ void trimedges1(const u32 round) {
-     if (threadIdx.x) return;
-    indexer<ZBUCKETSIZE,NZ1,NZ2> dst;
+    __shared__ indexer<ZBUCKETSIZE,NZ1,NZ2> dst;
+    __shared__ twice_set<NYZ1> degs;
 
+    u8 * const base = (u8 *)buckets;
+    u32          vx = NY *  blockIdx.x    / nblocks;
+    const u32 endvx = NY * (blockIdx.x+1) / nblocks;
     u32 sumsize = 0;
-    u8 *degs = tdegs[blockIdx.x];
-    u8 const *base = (u8 *)buckets;
-    const u32 startvx = NY *  blockIdx.x    / nblocks;
-    const u32   endvx = NY * (blockIdx.x+1) / nblocks;
-    for (u32 vx = startvx; vx < endvx; vx++) {
-      TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
-      memset(degs, 0xff, NYZ1);
+    for (; vx < endvx; vx++) {
+      if (!threadIdx.x) {
+        TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
+      }
+      degs.reset();
       for (u32 ux = 0 ; ux < NX; ux++) {
+        __syncthreads();
         zbucket<ZBUCKETSIZE,NZ1,NZ2> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbg = zb.words, *endreadbg = readbg + zb.size/sizeof(u32);
         // printf("id %d vx %d ux %d size %d\n", blockIdx.x, vx, ux, zb.size/SRCSIZE);
-        for (; readbg < endreadbg; readbg++)
-          degs[*readbg & YZ1MASK]++;
+        for (readbg += threadIdx.x; readbg < endreadbg; readbg += blockDim.x)
+          degs.set(*readbg & YZ1MASK);
       }
       for (u32 ux = 0 ; ux < NX; ux++) {
+        __syncthreads();
         zbucket<ZBUCKETSIZE,NZ1,NZ2> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbg = zb.words, *endreadbg = readbg + zb.size/sizeof(u32);
-        for (; readbg < endreadbg; readbg++) {
+        for (readbg += threadIdx.x; readbg < endreadbg; readbg += blockDim.x) {
 // bit       29..22    21..15     14..7     6..0
 // read      UYYYYY    UZZZZ'     VYYYY     VZZ'   within VX partition
           const u32 e = *readbg;
@@ -727,14 +717,17 @@ public:
           // printf("id %d vx %d ux %d e %08lx vyz %04x uyz %04x\n", blockIdx.x, vx, ux, e, vyz, e >> YZ1BITS);
 // bit       29..22    21..15     14..7     6..0
 // write     VYYYYY    VZZZZ'     UYYYY     UZZ'   within UX partition
-	  if ((u64)(base+dst.index[ux]) & 3ULL) { printf("HOLY FUCK!\n"); }
-          *(u32 *)(base+dst.index[ux]) = (vyz << YZ1BITS) | (e >> YZ1BITS);
-          dst.index[ux] += degs[vyz] ? sizeof(u32) : 0;
+          if (degs.test(vyz)) {
+            const u32 idx = atomicAdd(&dst.index[ux], sizeof(u32));
+            *(u32 *)(base+idx) = (vyz << YZ1BITS) | (e >> YZ1BITS);
+	  }
         }
       }
-      sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
+      __syncthreads();
+      if (!threadIdx.x)
+        sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
     }
-    if (showall || !blockIdx.x && !(round & (round+1)))
+    if (showall || !blockIdx.x && !threadIdx.x && !(round & (round+1)))
       printf("trimedges1 id %d round %2d size %u\n", blockIdx.x, round, sumsize/sizeof(u32));
     tcounts[blockIdx.x] = sumsize/sizeof(u32);
   }
@@ -893,9 +886,12 @@ __global__ void _recoveredges1(edgetrimmer *et) {
 
   int edgetrimmer::trim() {
     cudaMemcpy(dt, this, sizeof(edgetrimmer), cudaMemcpyHostToDevice);
-    cudaEvent_t start, stop;
-    if (checkCudaErrors(cudaEventCreate(&start))) return 0;
-    if (checkCudaErrors(cudaEventCreate(&stop))) return 0;
+    cudaEvent_t start, stop, startall, stopall;
+    if(checkCudaErrors(cudaEventCreate(&startall))) return 0;
+    if(checkCudaErrors(cudaEventCreate(&stopall))) return 0;
+    cudaEventRecord(startall, NULL);
+    if(checkCudaErrors(cudaEventCreate(&start))) return 0;
+    if(checkCudaErrors(cudaEventCreate(&stop))) return 0;
     float duration;
 
     cudaEventRecord(start, NULL);
@@ -929,7 +925,8 @@ __global__ void _recoveredges1(edgetrimmer *et) {
       cudaEventRecord(stop, NULL);
       cudaEventSynchronize(stop);
       cudaEventElapsedTime(&duration, start, stop);
-      printf("round %d completed in %.3f seconds\n", round, duration / 1000.0f);
+      if (round < REPORTROUNDS)
+        printf("round %d completed in %.3f seconds\n", round, duration / 1000.0f);
 
       cudaEventRecord(start, NULL);
       if (round < COMPRESSROUND) {
@@ -945,7 +942,8 @@ __global__ void _recoveredges1(edgetrimmer *et) {
       cudaEventRecord(stop, NULL);
       cudaEventSynchronize(stop);
       cudaEventElapsedTime(&duration, start, stop);
-      printf("round %d completed in %.3f seconds\n", round+1, duration / 1000.0f);
+      if (round+1 < REPORTROUNDS)
+        printf("round %d completed in %.3f seconds\n", round+1, duration / 1000.0f);
     }
 
     cudaEventRecord(start, NULL);
@@ -963,6 +961,11 @@ __global__ void _recoveredges1(edgetrimmer *et) {
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&duration, start, stop);
     printf("rename1 completed in %.3f seconds\n", duration / 1000.0f);
+
+    cudaEventRecord(stopall, NULL);
+    cudaEventSynchronize(stopall);
+    cudaEventElapsedTime(&duration, startall, stopall);
+    printf("trim completed in %.3f seconds\n", duration / 1000.0f);
   }
 
 #define NODEBITS (EDGEBITS + 1)
@@ -1129,7 +1132,8 @@ extern "C" int cuckoo_call(char* header_data,
   bool allrounds = false;
   bool showcycle = 0;
   char header[HEADERLEN];
-  u32 len;
+  u32 len, timems;
+  struct timeval time0, time1;
   int c;
 
   /*memset(header, 0, sizeof(header));
@@ -1211,10 +1215,14 @@ extern "C" int cuckoo_call(char* header_data,
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
+    gettimeofday(&time0, 0);
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx.setheadergrin(header_data, header_length);
     printf("nonce %d k0 k1 %llx %llx\n", nonce+r, ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1);
     u32 nsols = ctx.solve();
+    gettimeofday(&time1, 0);
+    timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
+    printf("Time: %d ms\n", timems);
 
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");

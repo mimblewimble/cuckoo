@@ -158,6 +158,8 @@ typedef class deviceInfo {
     u64 last_end_time; 
     u64 last_solution_time;
     u32 iterations_completed;
+    bool threw_error;
+    bool in_use;
 
     deviceInfo();
 
@@ -170,6 +172,8 @@ deviceInfo::deviceInfo(){
     last_end_time=0;
     last_solution_time=0;
     iterations_completed=0;
+    in_use=true;
+    threw_error=false;
 }
 
 //This should be set to true if queue processing is stopped and not
