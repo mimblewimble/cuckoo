@@ -234,11 +234,11 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     pthread_mutex_lock (&device_info_mutex);
     int last_written=snprintf(prop_string+last_write_pos,
                           remaining, 
-                          device_stat_json, DEVICE_INFO.device_id, 
-                          DEVICE_INFO.in_use, DEVICE_INFO.threw_error, 
-                          DEVICE_INFO.device_name, DEVICE_INFO.last_start_time,
+                          device_stat_json, DEVICE_INFO.device_id,
+                          DEVICE_INFO.device_name, DEVICE_INFO.in_use,
+                          DEVICE_INFO.threw_error, DEVICE_INFO.last_start_time,
                           DEVICE_INFO.last_end_time, DEVICE_INFO.last_solution_time,
-     DEVICE_INFO.iterations_completed);
+                          DEVICE_INFO.iterations_completed);
     pthread_mutex_unlock(&device_info_mutex);
     remaining-=last_written;
     last_write_pos+=last_written;
