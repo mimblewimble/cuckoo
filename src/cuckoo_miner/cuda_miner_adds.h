@@ -58,7 +58,7 @@ cudaDeviceInfo::cudaDeviceInfo(){
     iterations_completed=0;
     num_blocks_param=64;
     threads_per_block_param=1;
-    use_device_param=1;
+    use_device_param=0;
     threw_error=false;
 }
 
@@ -161,7 +161,7 @@ extern "C" int cuckoo_init(){
   PLUGIN_PROPERTY device_list_prop;
   strcpy(device_list_prop.name,"USE_DEVICE\0");
   strcpy(device_list_prop.description,"If set, include this device while mining parallel GPUs\0");
-  device_list_prop.default_value=1;
+  device_list_prop.default_value=0;
   device_list_prop.min_value=0;
   device_list_prop.max_value=1;
   device_list_prop.is_per_device=true;
@@ -179,7 +179,7 @@ extern "C" int cuckoo_init(){
   PLUGIN_PROPERTY num_threads_prop;
   strcpy(num_threads_prop.name,"THREADS_PER_BLOCK\0");
   strcpy(num_threads_prop.description,"The number of threads per block\0");
-  num_threads_prop.default_value=1;
+  num_threads_prop.default_value=32;
   num_threads_prop.min_value=1;
   num_threads_prop.max_value=256;
   num_threads_prop.is_per_device=true;
@@ -187,6 +187,8 @@ extern "C" int cuckoo_init(){
 
   for (int i=0;i<NUM_DEVICES;i++){
      DEVICE_INFO[i].use_device_param = device_list_prop.default_value;
+     //only use device 0 by default, will need to specify explicitly otherwise
+     if (i==0) DEVICE_INFO[i].use_device_param=1;
      DEVICE_INFO[i].num_blocks_param = num_blocks_prop.default_value;
      DEVICE_INFO[i].threads_per_block_param = num_threads_prop.default_value;
   }
@@ -326,12 +328,12 @@ void *process_internal_worker (void *vp) {
 
   //this should set the device for this thread
   cudaSetDevice(args->device_id);
-  cudaDeviceReset();
- 
+
   u32 response[PROOFSIZE];
   u64 start_time=timestamp();
 
   int return_val=cuckoo_call((char*) args->hash, sizeof(args->hash), response);
+  update_stats(args->device_id, start_time);
 
   if (return_val==1){
     QueueOutput output;
@@ -340,7 +342,6 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);
   }
-  update_stats(args->device_id, start_time);
   delete(args);
   internal_processing_finished=true;
 }

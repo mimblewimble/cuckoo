@@ -276,7 +276,7 @@ void *cuckoo_process(void *args) {
         //Should be done a bit less dumbly, but this is only called when
         //a user of the lib requests a quit... hopefully shouldn't affect
         //performance too badly
-        usleep(10);
+        usleep(50);
     }
     cuckoo_clear_queues();
     processing_finished=true;

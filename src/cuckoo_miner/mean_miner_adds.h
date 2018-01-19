@@ -177,6 +177,7 @@ void *process_internal_worker (void *vp) {
 
   u64 start_time=timestamp();
   int return_val=cuckoo_call(args->hash, sizeof(args->hash), response);
+  update_stats(start_time);
 
   if (return_val==1){
     QueueOutput output;
@@ -185,7 +186,6 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     OUTPUT_QUEUE.enqueue(output);  
   }
-  update_stats(start_time);
   is_working=false;
   internal_processing_finished=true;
   pthread_exit(NULL);
