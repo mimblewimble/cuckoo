@@ -1150,11 +1150,10 @@ extern "C" int cuckoo_call(char* header_data,
         break;
       case 'T':
 	for (char *comma = optarg-1; comma && sscanf(comma+1, "%d",&nt); comma=strchr(comma+1,','))
-          nthreads[nspecs++] = nt;
 	assert(nspecs >= 2);
         for (; nspecs < 2*COMPRESSROUND; nspecs++)
           nthreads[nspecs] = nthreads[nspecs-2];
-        break;
+          break;
       case 't':
 	assert(nspecs == 2*COMPRESSROUND);
 	for (char *comma = optarg-1; comma && sscanf(comma+1, "%d",&nt); comma=strchr(comma+1,','))
@@ -1169,7 +1168,7 @@ extern "C" int cuckoo_call(char* header_data,
         range = atoi(optarg);
         break;
     }
-  }*/
+  }
 
   /*cudaGetDeviceCount(&nDevices);
   assert(device < nDevices);
