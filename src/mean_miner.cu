@@ -986,6 +986,7 @@ __global__ void _recoveredges1(edgetrimmer *et) {
 
     cudaEventRecord(stopall, NULL); cudaEventSynchronize(stopall); cudaEventElapsedTime(&duration, startall, stopall);
     printf("trim completed in %.0f ms\n", duration);
+    return 1;
   }
 
 #define NODEBITS (EDGEBITS + 1)
