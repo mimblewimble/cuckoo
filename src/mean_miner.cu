@@ -287,13 +287,13 @@ struct trimparams {
     genUblocks          = 256;
     genUtpb             =   8;
     genV.stage1tpb      =  32;
-    genV.stage2tpb      = 128;
+    genV.stage2tpb      = 64;//128;
     trim.stage1tpb      =  32;
-    trim.stage2tpb      = 128;
+    trim.stage2tpb      = 64;//128;
     rename[0].stage1tpb =  32;
     rename[0].stage2tpb =  64;
     rename[1].stage1tpb =  32;
-    rename[1].stage2tpb = 128;
+    rename[1].stage2tpb = 64;//128;
     trim3tpb            =  64;
     rename3tpb          =   2;
     reportcount   = 1;
@@ -1222,6 +1222,24 @@ extern "C" int cuckoo_call(char* header_data,
   for (dunit=0; dbytes >= 10240; dbytes>>=10,dunit++) ;
   printf("%s with %d%cB @ %d bits x %dMHz\n", prop.name, (u32)dbytes, " KMGT"[dunit], prop.memoryBusWidth, prop.memoryClockRate/1000);
   cudaSetDevice(device);*/
+
+	// Set tuning parameters
+	int device_id;
+	cudaGetDevice(&device_id);
+  tp.ntrims              = DEVICE_INFO[device_id].tune_params[0];
+  tp.nblocks             = DEVICE_INFO[device_id].tune_params[1];
+  tp.genUblocks          = DEVICE_INFO[device_id].tune_params[2];
+  tp.genUtpb             = DEVICE_INFO[device_id].tune_params[3];
+  tp.genV.stage1tpb      = DEVICE_INFO[device_id].tune_params[4];
+  tp.genV.stage2tpb      = DEVICE_INFO[device_id].tune_params[5];
+  tp.trim.stage1tpb      = DEVICE_INFO[device_id].tune_params[6];
+  tp.trim.stage2tpb      = DEVICE_INFO[device_id].tune_params[7];
+  tp.rename[0].stage1tpb = DEVICE_INFO[device_id].tune_params[8];
+  tp.rename[0].stage2tpb = DEVICE_INFO[device_id].tune_params[9];
+  tp.rename[1].stage1tpb = DEVICE_INFO[device_id].tune_params[10];
+  tp.rename[1].stage2tpb = DEVICE_INFO[device_id].tune_params[11];
+  tp.trim3tpb            = DEVICE_INFO[device_id].tune_params[12];
+  tp.rename3tpb          = DEVICE_INFO[device_id].tune_params[13];
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)

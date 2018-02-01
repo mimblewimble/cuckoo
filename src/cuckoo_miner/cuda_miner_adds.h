@@ -26,6 +26,7 @@ extern "C" int cuckoo_call(char* header_data,
 pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define MAX_DEVICES 32
+#define NUM_TUNE_PARAMS 14
 u32 NUM_DEVICES=0;
 
 typedef class cudaDeviceInfo {
@@ -40,13 +41,14 @@ typedef class cudaDeviceInfo {
     u32 iterations_completed;
 
     bool threw_error;
-
-    //Store parameters per device
-    int num_blocks_param;
-    int threads_per_block_param;
     int use_device_param;
 
+    //Store parameters per device
+    int tune_params[NUM_TUNE_PARAMS];
+
     cudaDeviceInfo();
+    //Fill with default tuning parameters, ideally per device type
+    void fill_tuning_params();
 } CudaDeviceInfo;
 
 cudaDeviceInfo::cudaDeviceInfo(){
@@ -56,10 +58,31 @@ cudaDeviceInfo::cudaDeviceInfo(){
     last_end_time=0;
     last_solution_time=0;
     iterations_completed=0;
-    num_blocks_param=64;
-    threads_per_block_param=1;
-    use_device_param=0;
     threw_error=false;
+		use_device_param=0;
+
+    // just zero out tuning parameters
+    for (int i=0;i<NUM_TUNE_PARAMS;i++){
+        tune_params[i]=0;
+    }
+}
+
+void cudaDeviceInfo::fill_tuning_params(){
+    //TODO: Check device type and adjust to sensible defaults
+    tune_params[0]=176; //N_TRIMS
+    tune_params[1]=64; //N_BLOCKS
+    tune_params[2]=256; //GENU_BLOCKS
+    tune_params[3]=8; //GENU_TPB
+    tune_params[4]=32; //GENV_STAGE1_TPB
+    tune_params[5]=64; //GENV_STAGE2_TPB
+    tune_params[6]=32; //TRIM_STAGE_1_TPB
+    tune_params[7]=96; //TRIM_STAGE_2_TPB
+    tune_params[8]=32; //RENAME_0_STAGE1_TPB
+    tune_params[9]=64; //RENAME_0_STAGE2_TPB
+    tune_params[10]=32; //RENAME_1_STAGE1_TPB
+    tune_params[11]=64; //RENAME_2_STAGE2_TPB
+    tune_params[12]=64; //TRIM_3_TPB
+    tune_params[13]=2; //RENAME_3_TPB
 }
 
 CudaDeviceInfo DEVICE_INFO[MAX_DEVICES];
@@ -167,30 +190,37 @@ extern "C" int cuckoo_init(){
   device_list_prop.is_per_device=true;
   add_plugin_property(device_list_prop);
 
-  PLUGIN_PROPERTY num_blocks_prop;
-  strcpy(num_blocks_prop.name,"NUM_BLOCKS\0");
-  strcpy(num_blocks_prop.description,"Number of blocks (buckets) to allocate\0");
-  num_blocks_prop.default_value=64;
-  num_blocks_prop.min_value=1;
-  num_blocks_prop.max_value=1024;
-  num_blocks_prop.is_per_device=true;
-  add_plugin_property(num_blocks_prop);
-
-  PLUGIN_PROPERTY num_threads_prop;
-  strcpy(num_threads_prop.name,"THREADS_PER_BLOCK\0");
-  strcpy(num_threads_prop.description,"The number of threads per block\0");
-  num_threads_prop.default_value=32;
-  num_threads_prop.min_value=1;
-  num_threads_prop.max_value=256;
-  num_threads_prop.is_per_device=true;
-  add_plugin_property(num_threads_prop);
+  for (int i=0;i<NUM_TUNE_PARAMS;i++){
+    PLUGIN_PROPERTY prop;
+    switch (i) {
+			 case 0: {strcpy(prop.name,"N_TRIMS\0"); prop.default_value = 176; break;}
+			 case 1: {strcpy(prop.name,"N_BLOCKS\0"); prop.default_value = 64; break;}
+			 case 2: {strcpy(prop.name,"GENU_BLOCKS\0"); prop.default_value = 256; break;}
+			 case 3: {strcpy(prop.name,"GENU_TPB\0"); prop.default_value = 8; break;}
+			 case 4: {strcpy(prop.name,"GENV_STAGE1_TPB\0"); prop.default_value = 32; break;}
+			 case 5: {strcpy(prop.name,"GENV_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 6: {strcpy(prop.name,"TRIM_STAGE1_TPB\0"); prop.default_value = 32; break;}
+			 case 7: {strcpy(prop.name,"TRIM_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 8: {strcpy(prop.name,"RENAME_0_STAGE1_TPB\0"); prop.default_value = 32; break;}
+			 case 9: {strcpy(prop.name,"RENAME_0_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 10: {strcpy(prop.name,"RENAME_1_STAGE1_TPB\0"); prop.default_value = 32; break;}
+			 case 11: {strcpy(prop.name,"RENAME_1_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 12: {strcpy(prop.name,"TRIM_3_TPB\0"); prop.default_value = 64;break;}
+			 case 13: {strcpy(prop.name,"RENAME_3_TPB\0"); prop.default_value = 2;break;}
+		}
+    strcpy(prop.description,"Tuning Parameter\0");
+    prop.min_value=1;
+    prop.max_value=1024;
+    prop.is_per_device=true;
+    add_plugin_property(prop);
+  }
 
   for (int i=0;i<NUM_DEVICES;i++){
      DEVICE_INFO[i].use_device_param = device_list_prop.default_value;
      //only use device 0 by default, will need to specify explicitly otherwise
      if (i==0) DEVICE_INFO[i].use_device_param=1;
-     DEVICE_INFO[i].num_blocks_param = num_blocks_prop.default_value;
-     DEVICE_INFO[i].threads_per_block_param = num_threads_prop.default_value;
+
+     DEVICE_INFO[i].fill_tuning_params();
   }
 
   return PROPERTY_RETURN_OK;
@@ -229,7 +259,7 @@ extern "C" int cuckoo_parameter_list(char *params_out_buf,
                                   
 }
 
-/// Return a simple json list of parameters
+/// Set a parameter
 
 extern "C" int cuckoo_set_parameter(char *param_name,
                                      int param_name_len,
@@ -248,17 +278,113 @@ extern "C" int cuckoo_set_parameter(char *param_name,
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  if (strcmp(compare_buf,"NUM_BLOCKS")==0){
+  if (strcmp(compare_buf,"N_TRIMS")==0){
     if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
-       DEVICE_INFO[device_id].num_blocks_param=value;
+       DEVICE_INFO[device_id].tune_params[0]=value;
        return PROPERTY_RETURN_OK;
     } else {
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-  if (strcmp(compare_buf,"THREADS_PER_BLOCK")==0){
+  if (strcmp(compare_buf,"N_BLOCKS")==0){
     if (value>=PROPS[2].min_value && value<=PROPS[2].max_value){
-       DEVICE_INFO[device_id].threads_per_block_param=value;
+       DEVICE_INFO[device_id].tune_params[1]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"GENU_BLOCKS")==0){
+    if (value>=PROPS[3].min_value && value<=PROPS[3].max_value){
+       DEVICE_INFO[device_id].tune_params[2]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"GENU_TPB")==0){
+    if (value>=PROPS[4].min_value && value<=PROPS[4].max_value){
+       DEVICE_INFO[device_id].tune_params[3]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"GENV_STAGE1_TPB")==0){
+    if (value>=PROPS[5].min_value && value<=PROPS[5].max_value){
+       DEVICE_INFO[device_id].tune_params[4]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"GENV_STAGE2_TPB")==0){
+    if (value>=PROPS[6].min_value && value<=PROPS[6].max_value){
+       DEVICE_INFO[device_id].tune_params[5]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"TRIM_STAGE1_TPB")==0){
+    if (value>=PROPS[7].min_value && value<=PROPS[7].max_value){
+       DEVICE_INFO[device_id].tune_params[6]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"TRIM_STAGE2_TPB")==0){
+    if (value>=PROPS[8].min_value && value<=PROPS[8].max_value){
+       DEVICE_INFO[device_id].tune_params[7]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"RENAME_0_STAGE1_TPB")==0){
+    if (value>=PROPS[9].min_value && value<=PROPS[9].max_value){
+       DEVICE_INFO[device_id].tune_params[8]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"RENAME_0_STAGE2_TPB")==0){
+    if (value>=PROPS[10].min_value && value<=PROPS[10].max_value){
+       DEVICE_INFO[device_id].tune_params[9]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"RENAME_1_STAGE1_TPB")==0){
+    if (value>=PROPS[11].min_value && value<=PROPS[11].max_value){
+       DEVICE_INFO[device_id].tune_params[10]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"RENAME_1_STAGE2_TPB")==0){
+    if (value>=PROPS[12].min_value && value<=PROPS[12].max_value){
+       DEVICE_INFO[device_id].tune_params[11]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"TRIM_3_TPB")==0){
+    if (value>=PROPS[13].min_value && value<=PROPS[13].max_value){
+       DEVICE_INFO[device_id].tune_params[12]=value;
+       return PROPERTY_RETURN_OK;
+    } else {
+      return PROPERTY_RETURN_OUTSIDE_RANGE;
+    }
+  }
+  if (strcmp(compare_buf,"RENAME_3_TPB")==0){
+    if (value>=PROPS[14].min_value && value<=PROPS[14].max_value){
+       DEVICE_INFO[device_id].tune_params[13]=value;
        return PROPERTY_RETURN_OK;
     } else {
       return PROPERTY_RETURN_OUTSIDE_RANGE;
@@ -279,12 +405,60 @@ extern "C" int cuckoo_get_parameter(char *param_name,
        *value = DEVICE_INFO[device_id].use_device_param;
        return PROPERTY_RETURN_OK;
   }
-  if (strcmp(compare_buf,"NUM_BLOCKS")==0){
-       *value = DEVICE_INFO[device_id].num_blocks_param;
+  if (strcmp(compare_buf,"N_TRIMS")==0){
+       *value = DEVICE_INFO[device_id].tune_params[0];
        return PROPERTY_RETURN_OK;
   }
-  if (strcmp(compare_buf,"THREADS_PER_BLOCK")==0){
-       *value = DEVICE_INFO[device_id].threads_per_block_param;
+  if (strcmp(compare_buf,"N_BLOCKS")==0){
+       *value = DEVICE_INFO[device_id].tune_params[1];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"GENU_BLOCKS")==0){
+       *value = DEVICE_INFO[device_id].tune_params[2];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"GENU_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[3];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"GENV_STAGE1_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[4];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"GENV_STAGE2_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[5];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"TRIM_STAGE1_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[6];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"TRIM_STAGE2_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[7];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"RENAME_0_STAGE1_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[8];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"RENAME_0_STAGE2_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[9];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"RENAME_1_STAGE1_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[10];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"RENAME_1_STAGE2_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[11];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"TRIM_3_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[12];
+       return PROPERTY_RETURN_OK;
+  }
+  if (strcmp(compare_buf,"RENAME_3_TPB")==0){
+       *value = DEVICE_INFO[device_id].tune_params[13];
        return PROPERTY_RETURN_OK;
   }
   return PROPERTY_RETURN_NOT_FOUND;
