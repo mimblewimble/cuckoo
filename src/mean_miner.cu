@@ -1137,9 +1137,10 @@ extern "C" int cuckoo_call(char* header_data,
   char header[HEADERLEN];
   u32 len, timems;
   struct timeval time0, time1;
-  /*int c;
-	  memset(header, 0, sizeof(header));
-    while ((c = getopt(argc, argv, "sb:c:d:h:k:m:n:r:U:u:V:v:T:t:X:x:Y:y:Z:z:")) != -1) {
+  /*
+  int c;
+  memset(header, 0, sizeof(header));
+  while ((c = getopt(argc, argv, "sb:c:d:h:k:m:n:r:U:u:V:v:T:t:X:x:Y:y:Z:z:")) != -1) {
     switch (c) {
       case 's':
         printf("SYNOPSIS\n  cuda30 [-b sblocks] [-c count] [-d device] [-h hexheader] [-k rounds] [-m trims] [-n nonce] [-r range] [-U sblocks] [-u threads] [-V threads] [-v threads] [-T threads] [-t threads] [-X threads] [-x threads] [-Y threads] [-y threads] [-Z threads] [-z threads]\n");
