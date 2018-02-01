@@ -80,19 +80,19 @@ Performance
 --------------
 
 The runtime of a single proof attempt for a 2^30 node graph on a 4GHz i7-4790K is 10.5 seconds
-with the single-threaded matrix solver, using 3200MB (or 2200MB with slower cycle recovery).
+with the single-threaded mean solver, using 3200MB (or 2200MB with slower cycle recovery).
 This reduces to 3.5 seconds with 4 threads (3x speedup).
 
 Using an order of magnitude less memory (just under 200MB),
-the cuckoo solver takes 32.8 seconds per proof attempt.
+the lean solver takes 32.8 seconds per proof attempt.
 Its multi-threading performance is less impressive though,
 with 2 threads still taking 25.6 seconds and 4 taking 20.5 seconds.
 
 I claim that these implementations are reasonably optimal,
 secondly, that trading off (less) memory for (more) running time,
 incurs at least one order of magnitude extra slowdown,
-and finally, that cuda_miner.cu is a reasonably optimal memory-efficient GPU miner.
-The latter runs about 4x faster on an NVIDA GTX 980 than lean_miner on an Intel Core-i7 CPU.
+and finally, that mean_miner.cu is a reasonably optimal GPU miner.
+The latter runs about 2.4x faster on an NVIDA 1080Ti than mean_miner on an Intel Core-i7 CPU.
 To that end, I offer the following bounties:
 
 CPU Speedup Bounties
@@ -113,19 +113,20 @@ recent gcc compiler with regular flags as in my Makefile.
 
 GPU Speedup Bounty
 --------------
-$2500 for an open source implementation for a consumer GPU combo
-that finds 42-cycles twice as fast as cuda_miner.cu on comparable hardware,
-using no more than 1 byte per edge.
-Again with N ranging over {2^28,2^30,2^32}.
+$5000 for an open source implementation for a consumer GPU
+that finds 42-cycles twice as fast as mean_miner.cu on 2^30 node graphs on comparable hardware.
 
 The Makefile defines corresponding targets leancpubounty, meancpubounty, tmtobounty, and gpubounty.
 
-Double and Half bounties
+Double and fractional bounties
 ------------------------
 Improvements by a factor of 4 will be rewarded with double the regular bounty.
 
 In order to minimize the risk of missing out on less drastic improvements,
-I further offer half the regular bounty for improvements by a factor of sqrt(2).
+I further offer a fraction FRAC of the regular CPU/GPU-speedup bounty, payable in bitcoin cash,
+for improvements by a factor of 2^FRAC, where FRAC is at least one-tenth.
+Note that 2^0.1 is about a 7% improvement.
+
 Happy bounty hunting!
  
 Bounty contributors
