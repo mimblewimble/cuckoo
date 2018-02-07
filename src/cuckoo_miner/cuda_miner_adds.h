@@ -69,20 +69,20 @@ cudaDeviceInfo::cudaDeviceInfo(){
 
 void cudaDeviceInfo::fill_tuning_params(){
     //TODO: Check device type and adjust to sensible defaults
-    tune_params[0]=176; //N_TRIMS
-    tune_params[1]=64; //N_BLOCKS
-    tune_params[2]=256; //GENU_BLOCKS
+    tune_params[0]=240; //N_TRIMS
+    tune_params[1]=128; //N_BLOCKS
+    tune_params[2]=128; //GENU_BLOCKS
     tune_params[3]=8; //GENU_TPB
     tune_params[4]=32; //GENV_STAGE1_TPB
-    tune_params[5]=64; //GENV_STAGE2_TPB
+    tune_params[5]=128; //GENV_STAGE2_TPB
     tune_params[6]=32; //TRIM_STAGE_1_TPB
     tune_params[7]=96; //TRIM_STAGE_2_TPB
     tune_params[8]=32; //RENAME_0_STAGE1_TPB
     tune_params[9]=64; //RENAME_0_STAGE2_TPB
     tune_params[10]=32; //RENAME_1_STAGE1_TPB
-    tune_params[11]=64; //RENAME_2_STAGE2_TPB
-    tune_params[12]=64; //TRIM_3_TPB
-    tune_params[13]=2; //RENAME_3_TPB
+    tune_params[11]=128; //RENAME_2_STAGE2_TPB
+    tune_params[12]=32; //TRIM_3_TPB
+    tune_params[13]=8; //RENAME_3_TPB
 }
 
 CudaDeviceInfo DEVICE_INFO[MAX_DEVICES];
@@ -193,20 +193,20 @@ extern "C" int cuckoo_init(){
   for (int i=0;i<NUM_TUNE_PARAMS;i++){
     PLUGIN_PROPERTY prop;
     switch (i) {
-			 case 0: {strcpy(prop.name,"N_TRIMS\0"); prop.default_value = 176; break;}
-			 case 1: {strcpy(prop.name,"N_BLOCKS\0"); prop.default_value = 64; break;}
-			 case 2: {strcpy(prop.name,"GENU_BLOCKS\0"); prop.default_value = 256; break;}
+			 case 0: {strcpy(prop.name,"N_TRIMS\0"); prop.default_value = 240; break;}
+			 case 1: {strcpy(prop.name,"N_BLOCKS\0"); prop.default_value = 128; break;}
+			 case 2: {strcpy(prop.name,"GENU_BLOCKS\0"); prop.default_value = 128; break;}
 			 case 3: {strcpy(prop.name,"GENU_TPB\0"); prop.default_value = 8; break;}
 			 case 4: {strcpy(prop.name,"GENV_STAGE1_TPB\0"); prop.default_value = 32; break;}
-			 case 5: {strcpy(prop.name,"GENV_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 5: {strcpy(prop.name,"GENV_STAGE2_TPB\0"); prop.default_value = 128; break;}
 			 case 6: {strcpy(prop.name,"TRIM_STAGE1_TPB\0"); prop.default_value = 32; break;}
-			 case 7: {strcpy(prop.name,"TRIM_STAGE2_TPB\0"); prop.default_value = 64; break;}
+			 case 7: {strcpy(prop.name,"TRIM_STAGE2_TPB\0"); prop.default_value = 96; break;}
 			 case 8: {strcpy(prop.name,"RENAME_0_STAGE1_TPB\0"); prop.default_value = 32; break;}
 			 case 9: {strcpy(prop.name,"RENAME_0_STAGE2_TPB\0"); prop.default_value = 64; break;}
 			 case 10: {strcpy(prop.name,"RENAME_1_STAGE1_TPB\0"); prop.default_value = 32; break;}
-			 case 11: {strcpy(prop.name,"RENAME_1_STAGE2_TPB\0"); prop.default_value = 64; break;}
-			 case 12: {strcpy(prop.name,"TRIM_3_TPB\0"); prop.default_value = 64;break;}
-			 case 13: {strcpy(prop.name,"RENAME_3_TPB\0"); prop.default_value = 2;break;}
+			 case 11: {strcpy(prop.name,"RENAME_1_STAGE2_TPB\0"); prop.default_value = 128; break;}
+			 case 12: {strcpy(prop.name,"TRIM_3_TPB\0"); prop.default_value = 32;break;}
+			 case 13: {strcpy(prop.name,"RENAME_3_TPB\0"); prop.default_value = 8;break;}
 		}
     strcpy(prop.description,"Tuning Parameter\0");
     prop.min_value=1;
