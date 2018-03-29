@@ -254,7 +254,7 @@ void solution(cuckoo_ctx *ctx, node_t *us, u32 nu, node_t *vs, u32 nv, worker_ar
   printf("Solution: ");
   int sol_nonce_index=0;
   for (nonce_t nonce = n = 0; nonce < NEDGES; nonce++) {
-    edge e(sipnode(&ctx->sip_keys, nonce, 0), sipnode(&ctx->sip_keys, nonce, 1));
+    edge e(sipnode_(&ctx->sip_keys, nonce, 0), sipnode_(&ctx->sip_keys, nonce, 1));
     if (cycle.find(e) != cycle.end()) {
       printf("%x%c", nonce, ++n == PROOFSIZE?'\n':' ');
       args->sol_nonces[sol_nonce_index]=nonce;
@@ -279,7 +279,7 @@ void *worker(void *vp) {
   for (node_t upart=0; upart < ctx->nparts; upart++) {
     if (ctx->minimalbfs) {
       for (nonce_t nonce = tp->id; nonce < NEDGES; nonce += ctx->nthreads) {
-        node_t u0 = _sipnode(&ctx->sip_keys, nonce, 0);
+        node_t u0 = sipnode(&ctx->sip_keys, nonce, 0);
         if (u0 != 0 && (u0 & UPART_MASK) == upart)
             nonleaf->set(u0 >> UPART_BITS);
       }
@@ -287,8 +287,9 @@ void *worker(void *vp) {
     barrier(&ctx->barry);
     static int bfsdepth = ctx->minimalbfs ? PROOFSIZE/2 : PROOFSIZE;
     for (int depth=0; depth < bfsdepth; depth++) {
+      u32 uorv = depth&1;
       for (nonce_t nonce = tp->id; nonce < NEDGES; nonce += ctx->nthreads) {
-        node_t u0 = sipnode(&ctx->sip_keys, nonce, depth&1);
+        node_t u0 = sipnode_(&ctx->sip_keys, nonce, uorv);
         if (u0 == 0)
           continue;
         if (depth == 0) {
@@ -301,7 +302,7 @@ void *worker(void *vp) {
         node_t u = cuckoo[us[0] = u0];
         if (depth > 0 && u == 0)
           continue;
-        node_t v0 = sipnode(&ctx->sip_keys, nonce, (depth&1)^1);
+        node_t v0 = sipnode_(&ctx->sip_keys, nonce, uorv^1);
         if (v0 == 0)
           continue;
         node_t v = cuckoo[vs[0] = v0];

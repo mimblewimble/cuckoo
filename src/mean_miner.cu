@@ -231,14 +231,14 @@ struct trimparams {
   u16 reportrounds;
   
   trimparams() {
-    ntrims              = 240;
+    ntrims              = 256;
     nblocks             = 128;
     genUblocks          = 128;
     genUtpb             =   8;
     genV.stage1tpb      =  32;
     genV.stage2tpb      = 128;
     trim.stage1tpb      =  32;
-    trim.stage2tpb      = 128;
+    trim.stage2tpb      =  96;
     rename[0].stage1tpb =  32;
     rename[0].stage2tpb =  64;
     rename[1].stage1tpb =  32;
@@ -412,6 +412,7 @@ struct edgetrimmer {
     const u32 vx = blockIdx.x + part * gridDim.x;
     dst.matrixu(blockIdx.x);
     for (u32 ux = 0; ux < NX; ux++) {
+      __syncthreads();
       u32 uyz = 0;
       bigbuck &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
       const u8 *readbg = zb.bytes, *endreadbg = readbg + zb.size;
@@ -432,6 +433,7 @@ struct edgetrimmer {
       if (unlikely(uyz >> ZBITS >= NY))
       { printf("OOPS3: id %d vx %d ux %d uyz %x\n", blockIdx.x, vx, ux, uyz); break; }
     }
+    __syncthreads();
     dst.storeu(blockIdx.x);
   }
 
@@ -472,7 +474,7 @@ struct edgetrimmer {
       }
       __syncthreads();
       if (unlikely(ux >> DSTPREFBITS != XMASK >> DSTPREFBITS))
-      { printf("OOPS4: id %d.%d vx %x ux %x vs %x\n", blockIdx.x, threadIdx.x, vx, ux, XMASK); }
+      { printf("OOPS4: id %d.%d vx %x ux %x vs %x\n", blockIdx.x, threadIdx.x, vx, ux, XMASK); assert(0); }
     }
     TRIMONV ? dst.storev(vx) : dst.storeu(vx);
   }
@@ -485,6 +487,7 @@ struct edgetrimmer {
     const u32 vx = blockIdx.x + part * gridDim.x;
     dst.matrixu(blockIdx.x);
     for (u32 ux = 0 ; ux < NX; ux++) {
+      __syncthreads();
       bigbuck &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
       const u8 *readbg = zb.bytes, *endreadbg = readbg + zb.size;
       for (readbg += SRCSIZE*threadIdx.x; readbg < endreadbg; readbg += SRCSIZE*blockDim.x) {
@@ -502,6 +505,7 @@ struct edgetrimmer {
 // write          VXXXXXX     VYYYZZ'     UZZZZ   within UX UY partition  if !TRIMONV
       }
     }
+      __syncthreads();
     dst.storeu(blockIdx.x);
   }
 
@@ -932,20 +936,24 @@ struct solver_ctx {
     for (nu = 0; u != CUCKOO_NIL; u = cuckoo[u]) {
       if (nu >= MAXPATHLEN) {
         while (nu-- && us[nu] != u) ;
-        if (!~nu)
-          printf("maximum path length exceeded\n");
-        else printf("illegal %4d-cycle from node %d\n", MAXPATHLEN-nu, u0);
-        exit(0);
+        if (~nu) {
+          printf("illegal %4d-cycle from node %d\n", MAXPATHLEN-nu, u0);
+	  exit(0);
+	}
+        printf("maximum path length exceeded\n");
+	return 0; // happens once in a million runs or so; signal trouble
       }
       us[nu++] = u;
     }
-    return nu-1;
+    return nu;
   }
 
   void addedge(u32 uxyz, u32 vxyz) {
     const u32 u0 = uxyz << 1, v0 = (vxyz << 1) | 1;
     if (u0 != CUCKOO_NIL) {
       u32 nu = path(u0, us), nv = path(v0, vs);
+      if (!nu-- || !nv--)
+        return; // drop edge causing trouble
       // printf("vx %02x ux %02x e %08x uxyz %06x vxyz %06x u0 %x v0 %x nu %d nv %d\n", vx, ux, e, uxyz, vxyz, u0, v0, nu, nv);
       if (us[nu] == vs[nv]) {
         const u32 min = nu < nv ? nu : nv;
@@ -1082,10 +1090,21 @@ extern "C" int cuckoo_call(char* header_data,
   }*/
 
   /*int nDevices;
-  cudaGetDeviceCount(&nDevices);
+  checkCudaErrors(cudaGetDeviceCount(&nDevices));
   assert(device < nDevices);
   cudaDeviceProp prop;
-  cudaGetDeviceProperties(&prop, device);
+  checkCudaErrors(cudaGetDeviceProperties(&prop, device));
+  assert(tp.genUtpb <= prop.maxThreadsPerBlock);
+  assert(tp.genV.stage1tpb <= prop.maxThreadsPerBlock);
+  assert(tp.genV.stage2tpb <= prop.maxThreadsPerBlock);
+  assert(tp.trim.stage1tpb <= prop.maxThreadsPerBlock);
+  assert(tp.trim.stage2tpb <= prop.maxThreadsPerBlock);
+  assert(tp.rename[0].stage1tpb <= prop.maxThreadsPerBlock);
+  assert(tp.rename[0].stage2tpb <= prop.maxThreadsPerBlock);
+  assert(tp.rename[1].stage1tpb <= prop.maxThreadsPerBlock);
+  assert(tp.rename[1].stage2tpb <= prop.maxThreadsPerBlock);
+  assert(tp.trim3tpb <= prop.maxThreadsPerBlock);
+  assert(tp.rename3tpb <= prop.maxThreadsPerBlock);
   u64 dbytes = prop.totalGlobalMem;
   int dunit;
   for (dunit=0; dbytes >= 10240; dbytes>>=10,dunit++) ;

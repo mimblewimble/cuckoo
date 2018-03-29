@@ -17,7 +17,7 @@ extern "C" int cuckoo_call(char* header_data,
   int nonce = 0;
   int range = 1;
 
-  /*while ((c = getopt (argc, argv, "h:n:t:r:m")) != -1) {
+  /*while ((c = getopt (argc, argv, "h:n:p:t:r:m")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
