@@ -238,7 +238,7 @@ struct trimparams {
     genV.stage1tpb      =  32;
     genV.stage2tpb      = 128;
     trim.stage1tpb      =  32;
-    trim.stage2tpb      =  96;
+    trim.stage2tpb      = 128;
     rename[0].stage1tpb =  32;
     rename[0].stage2tpb =  64;
     rename[1].stage1tpb =  32;
