@@ -174,7 +174,9 @@ void update_stats(u64 start_time) {
 }
 
 void *process_internal_worker (void *vp) {
-  InternalWorkerArgs* args = (InternalWorkerArgs*) vp;
+  InternalWorkerArgs internal_args;
+  InternalWorkerArgs* args = &internal_args;
+  memcpy( &internal_args, vp, sizeof(InternalWorkerArgs) );
   u32 response[PROOFSIZE];
 
   u64 start_time=timestamp();
