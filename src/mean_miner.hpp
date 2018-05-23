@@ -1036,8 +1036,9 @@ public:
   bool showcycle;
   proof cycleus;
   proof cyclevs;
-  std::bitset<NXY> uxymap;
   std::vector<u32> sols; // concatanation of all proof's indices
+  std::bitset<NXY> uxymap;
+  u32 reserved[512];
 
   solver_ctx(const u32 n_threads, const u32 n_trims, bool allrounds, bool show_cycle) {
     trimmer = new edgetrimmer(n_threads, n_trims, allrounds);

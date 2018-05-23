@@ -73,6 +73,7 @@ extern "C" int cuckoo_call(char* header_data,
   printf(") with 50%% edges\n");
   */
   solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, allrounds, showcycle);
+  ctx.sols.reserve(10*PROOFSIZE);
   u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
   int sunit,tunit;
