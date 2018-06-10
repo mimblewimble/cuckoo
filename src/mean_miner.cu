@@ -1000,6 +1000,12 @@ struct solver_ctx {
 
 #include <unistd.h>
 
+// should be set to the maximum number of cards that can be run
+// in parallel on one machine
+const int MAX_CTX_INSTANCES = 20;
+static solver_ctx* ctx_pool[MAX_CTX_INSTANCES];
+static bool ctx_init[MAX_CTX_INSTANCES]={false};
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
@@ -1134,10 +1140,13 @@ extern "C" int cuckoo_call(char* header_data,
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, %d*%d buckets, %d trims, and %d thread blocks.\n", NX, NY, tp.ntrims, tp.nblocks); 
 
-  solver_ctx ctx(tp);
+  if (!ctx_init[device_id]){
+		ctx_pool[device_id]=new solver_ctx(tp);
+		ctx_init[device_id] = true;
+	}
 
-  u64 sbytes = ctx.trimmer->sharedbytes();
-  u64 tbytes = ctx.trimmer->threadbytes();
+  u64 sbytes = ctx_pool[device_id]->trimmer->sharedbytes();
+  u64 tbytes = ctx_pool[device_id]->trimmer->threadbytes();
   u64 bytes = sbytes + tp.nblocks * tbytes;
   int sunit,tunit,unit;
   for (sunit=0; sbytes >= 10240; sbytes>>=10,sunit++) ;
@@ -1150,23 +1159,23 @@ extern "C" int cuckoo_call(char* header_data,
   for (int r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
-    ctx.setheadergrin(header_data, header_length);
-    printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r,
-       ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1, ctx.trimmer->sip_keys.k2, ctx.trimmer->sip_keys.k3);
-    u32 nsols = ctx.solve();
+    ctx_pool[device_id]->setheadergrin(header_data, header_length);
+    /*printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r,
+       ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1, ctx.trimmer->sip_keys.k2, ctx.trimmer->sip_keys.k3);*/
+    u32 nsols = ctx_pool[device_id]->solve();
     gettimeofday(&time1, 0);
     timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
     printf("Time: %d ms\n", timems);
 
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
-      u32* prf = &ctx.sols[s * PROOFSIZE];
+      u32* prf = &ctx_pool[device_id]->sols[s * PROOFSIZE];
       for (u32 i = 0; i < PROOFSIZE; i++) {
         sol_nonces[i] = prf[i];
         printf(" %jx", (uintmax_t)prf[i]);
       }
       printf("\n");
-      int pow_rc = verify(prf, &ctx.trimmer->sip_keys);
+      int pow_rc = verify(prf, &ctx_pool[device_id]->trimmer->sip_keys);
       if (pow_rc == POW_OK) {
         printf("Verified with cyclehash ");
         unsigned char cyclehash[32];

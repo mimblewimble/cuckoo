@@ -39,7 +39,7 @@
 #endif
 
 #define HASH_LENGTH 32
-size_t MAX_QUEUE_SIZE=1000;
+size_t MAX_QUEUE_SIZE=20;
 bool SINGLE_MODE=true;
 
 u64 timestamp() {
@@ -276,7 +276,7 @@ void *cuckoo_process(void *args) {
         //Should be done a bit less dumbly, but this is only called when
         //a user of the lib requests a quit... hopefully shouldn't affect
         //performance too badly
-        usleep(50);
+        usleep(1);
     }
     cuckoo_clear_queues();
     processing_finished=true;

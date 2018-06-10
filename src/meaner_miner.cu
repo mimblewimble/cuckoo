@@ -11,6 +11,8 @@
 #include "siphash.cuh"
 #include "blake2.h"
 
+#include "cuckoo_miner/cuda_meaner_adds.h"
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 
@@ -232,12 +234,18 @@ __global__ void FluffyTail(const uint2 *source, uint2 *destination, const int *s
     destination[destIdx + lid] = source[group * DUCK_B_EDGES/4 + lid];
 }
 
-#define checkCudaErrors(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-  if (code != cudaSuccess) {
-    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort) exit(code);
+#define checkCudaErrors(ans) ({ int retval; retval = gpuAssert((ans), __FILE__, __LINE__); retval; })
+inline int gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+  int device_id;
+  cudaGetDevice(&device_id);
+	//Only spit this to logs once, then flag device to stop trying
+  if (code != cudaSuccess && !DEVICE_INFO[device_id].threw_error) {
+    fprintf(stderr,"Device %d GPUassert: %s %s %d\n", device_id, cudaGetErrorString(code), file, line);
+    cudaDeviceReset();
+    mark_device_error(device_id);
+    if (abort) return code;
   }
+  return 0;
 }
 
 __global__  void FluffyRecovery(const siphash_keys &sipkeys, ulonglong4 *buffer, int *indexes) {
@@ -340,7 +348,7 @@ struct edgetrimmer {
     cudaMemcpy(dt, this, sizeof(edgetrimmer), cudaMemcpyHostToDevice);
     // cudaEvent_t start, stop;
     cudaEvent_t startall, stopall;
-    checkCudaErrors(cudaEventCreate(&startall)); checkCudaErrors(cudaEventCreate(&stopall));
+    if (checkCudaErrors(cudaEventCreate(&startall))) return 0; if (checkCudaErrors(cudaEventCreate(&stopall))) return 0;
     // checkCudaErrors(cudaEventCreate(&start)); checkCudaErrors(cudaEventCreate(&stop));
   
     cudaMemset(indexesE, 0, indexesSize);
@@ -353,12 +361,12 @@ struct edgetrimmer {
   
     FluffySeed2A<<<tp.genA.blocks, tp.genA.tpb>>>(*dipkeys, (ulonglong4 *)bufferA, (int *)indexesE);
   
-    checkCudaErrors(cudaDeviceSynchronize()); // cudaEventRecord(stop, NULL);
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0; // cudaEventRecord(stop, NULL);
     // cudaEventSynchronize(stop); cudaEventElapsedTime(&durationA, start, stop);
     // cudaEventRecord(start, NULL);
   
     FluffySeed2B<<<tp.genB.blocks, tp.genB.tpb>>>((const uint2 *)bufferA, (ulonglong4 *)bufferB, (const int *)indexesE, (int *)indexesE2);
-    checkCudaErrors(cudaDeviceSynchronize()); // cudaEventRecord(stop, NULL);
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0; // cudaEventRecord(stop, NULL);
     // cudaEventSynchronize(stop); cudaEventElapsedTime(&durationB, start, stop);
     // printf("Seeding completed in %.0f + %.0f ms\n", durationA, durationB);
   
@@ -459,6 +467,10 @@ struct solver_ctx {
     setheader(headernonce, len, &trimmer->sipkeys);
     sols.clear();
   }
+  void setheadergrin(const char* header, const u32 len) {
+    setheader(header, len, &trimmer->sipkeys);
+    sols.clear();
+  }
   ~solver_ctx() {
     delete cuckoo;
     delete[] edges;
@@ -470,7 +482,7 @@ struct solver_ctx {
     soledges[i].y = v2/2;
   }
 
-  void solution(const u32 *us, u32 nu, const u32 *vs, u32 nv) {
+  int solution(const u32 *us, u32 nu, const u32 *vs, u32 nv) {
     u32 ni = 0;
     recordedge(ni++, *us, *vs);
     while (nu--)
@@ -483,8 +495,9 @@ struct solver_ctx {
     cudaMemset(trimmer->indexesE2, 0, trimmer->indexesSize);
     FluffyRecovery<<<trimmer->tp.recover.blocks, trimmer->tp.recover.tpb>>>(*trimmer->dipkeys, (ulonglong4 *)trimmer->bufferA, (int *)trimmer->indexesE2);
     cudaMemcpy(&sols[sols.size()-PROOFSIZE], trimmer->indexesE2, PROOFSIZE * sizeof(u32), cudaMemcpyDeviceToHost);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if (checkCudaErrors(cudaDeviceSynchronize())) return 0;
     qsort(&sols[sols.size()-PROOFSIZE], PROOFSIZE, sizeof(u32), nonce_cmp);
+    return 1;
   }
 
   u32 path(u32 u, u32 *us) {
@@ -542,6 +555,7 @@ struct solver_ctx {
 
     gettimeofday(&time0, 0);
     u32 nedges = trimmer->trim();
+    if (nedges == 0) return -1;
     assert(nedges <= MAXEDGES);
     cudaMemcpy(edges, trimmer->bufferA, nedges * 8, cudaMemcpyDeviceToHost);
     gettimeofday(&time1, 0);
@@ -557,10 +571,21 @@ struct solver_ctx {
 
 #include <unistd.h>
 
+// should be set to the maximum number of cards that can be run
+// in parallel on one machine
+const int MAX_CTX_INSTANCES = 20;
+static solver_ctx* ctx_pool[MAX_CTX_INSTANCES];
+static bool ctx_init[MAX_CTX_INSTANCES]={false};
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
-
-int main(int argc, char **argv) {
+extern "C" int cuckoo_call(char* header_data,
+                           int header_length,
+                           u32* sol_nonces ) {
+  u32 timems,timems2;
+  struct timeval time0, time1;
+  u64 start_time=timestamp();
+  gettimeofday(&time0, 0);
   trimparams tp;
   u32 nonce = 0;
   u32 range = 1;
@@ -569,7 +594,7 @@ int main(int argc, char **argv) {
   u32 len;
   int c;
 
-  memset(header, 0, sizeof(header));
+  /*memset(header, 0, sizeof(header));
   while ((c = getopt(argc, argv, "sb:c:d:h:k:m:n:r:V:y:Z:z:")) != -1) {
     switch (c) {
       case 's':
@@ -613,12 +638,38 @@ int main(int argc, char **argv) {
         tp.recover.tpb = atoi(optarg);
         break;
     }
-  }
-  int nDevices;
-  checkCudaErrors(cudaGetDeviceCount(&nDevices));
+  }*/
+/*
+    ntrims              =  176;
+    genA.blocks         =  512;
+    genA.tpb            =   NX;
+    genB.blocks         = NX2*BKTGRAN/NX;
+    genB.tpb            =   NX;
+    trim.blocks         =  NX2;
+    trim.tpb            = CTHREADS;
+    tail.blocks         =  NX2;
+    tail.tpb            = 1024; // needs to exceed #FINAL EDGES / NX2
+    recover.blocks      = 1024;
+    recover.tpb         = 1024;
+    reportcount         =    1;
+    reportrounds        =    0;
+*/
+  /*int nDevices;
+  if (checkCudaErrors(cudaGetDeviceCount(&nDevices)) return 0;
   assert(device < nDevices);
   cudaDeviceProp prop;
-  checkCudaErrors(cudaGetDeviceProperties(&prop, device));
+  if (checkCudaErrors(cudaGetDeviceProperties(&prop, device)) return 0;*/
+	int device_id;
+	cudaGetDevice(&device_id);
+
+	cudaDeviceProp prop;
+  if (checkCudaErrors(cudaGetDeviceProperties(&prop, device_id))) return 0;
+	tp.ntrims              = DEVICE_INFO[device_id].tune_params[0];
+  tp.genA.blocks         = DEVICE_INFO[device_id].tune_params[1];
+  tp.tail.tpb            = DEVICE_INFO[device_id].tune_params[2];
+  tp.recover.blocks      = DEVICE_INFO[device_id].tune_params[3];
+  tp.recover.tpb         = DEVICE_INFO[device_id].tune_params[4];
+
   assert(tp.genA.tpb <= prop.maxThreadsPerBlock);
   assert(tp.genB.tpb <= prop.maxThreadsPerBlock);
   assert(tp.trim.tpb <= prop.maxThreadsPerBlock);
@@ -629,29 +680,33 @@ int main(int argc, char **argv) {
   int dunit;
   for (dunit=0; dbytes >= 10240; dbytes>>=10,dunit++) ;
   printf("%s with %d%cB @ %d bits x %dMHz\n", prop.name, (u32)dbytes, " KMGT"[dunit], prop.memoryBusWidth, prop.memoryClockRate/1000);
-  cudaSetDevice(device);
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, %d*%d buckets, %d trims, and %d thread blocks.\n", NX, NY, tp.ntrims, NX);
 
-  solver_ctx ctx(tp);
+	if (!ctx_init[device_id]){
+		ctx_pool[device_id]=new solver_ctx(tp);
+		ctx_init[device_id] = true;
+	}
+	
 
   // loop starts here
   // wait for header hashes, nonce+r
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
-    printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx.trimmer->sipkeys.k0, ctx.trimmer->sipkeys.k1, ctx.trimmer->sipkeys.k2, ctx.trimmer->sipkeys.k3);
-    u32 nsols = ctx.solve();
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx_pool[device_id]->setheadergrin(header_data, header_length);
+    /*printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx_pool[device_id]->trimmer->sipkeys.k0, ctx.trimmer->sipkeys.k1, ctx.trimmer->sipkeys.k2, ctx.trimmer->sipkeys.k3);*/
+    u32 nsols = ctx_pool[device_id]->solve();
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
-      u32* prf = &ctx.sols[s * PROOFSIZE];
+      u32* prf = &ctx_pool[device_id]->sols[s * PROOFSIZE];
       for (u32 i = 0; i < PROOFSIZE; i++)
         printf(" %jx", (uintmax_t)prf[i]);
       printf("\n");
-      int pow_rc = verify(prf, &ctx.trimmer->sipkeys);
+      int pow_rc = verify(prf, &ctx_pool[device_id]->trimmer->sipkeys);
       if (pow_rc == POW_OK) {
         printf("Verified with cyclehash ");
         unsigned char cyclehash[32];
@@ -662,9 +717,22 @@ int main(int argc, char **argv) {
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
+      //Just return first solution for now
+      // TODO: Probably skip verify above
+      if (SINGLE_MODE){
+         update_stats(0, start_time);
+      }
+      return 1;
     }
     sumnsols += nsols;
   }
+  gettimeofday(&time1, 0);
+  timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
+  printf("total time %d ms\n", timems);
   printf("%d total solutions\n", sumnsols);
+  if (SINGLE_MODE){
+     printf("single mode\n");
+     update_stats(0,start_time);
+  }
   return 0;
 }
