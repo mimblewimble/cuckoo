@@ -3,8 +3,8 @@
 
 OPT ?= -O3
 
-GCC_ARCH_FLAGS ?= -m64
-GPP_ARCH_FLAGS ?= -march=native -m64
+GCC_ARCH_FLAGS ?= -march=native
+GPP_ARCH_FLAGS ?= -march=native
 
 # -Wno-deprecated-declarations shuts up Apple OSX clang
 FLAGS ?= -Wall -Wno-format -Wno-deprecated-declarations -D_POSIX_C_SOURCE=200112L $(OPT) -DPREFETCH -I. $(CPPFLAGS) -pthread
@@ -207,6 +207,9 @@ cuda30:	siphash.cuh mean_miner.cu Makefile
 
 cuda32:	siphash.cuh mean_miner.cu Makefile
 	nvcc -o $@ -DEDGEBITS=31 -arch sm_35 mean_miner.cu $(LIBS)
+
+meaner30:	siphash.cuh meaner_miner.cu Makefile
+	nvcc -o $@ -DEDGEBITS=29 -arch sm_35 meaner_miner.cu  $(LIBS)
 
 cycle28:	cycle_miner.cu Makefile
 	nvcc -o $@ -DEDGEBITS=27 -arch sm_35 cycle_miner.cu $(LIBS)

@@ -1,5 +1,6 @@
 Cuckoo Cycle
 ============
+
 [Blog article explaining Cuckoo Cycle](http://cryptorials.io/beyond-hashcash-proof-work-theres-mining-hashing)
 
 [Whitepaper](doc/cuckoo.pdf?raw=true)
@@ -27,26 +28,31 @@ requiring considerable resources, and some luck
 (the odds of a random cuckoo graph having an L-cycle are approximately 1 in L).
 
 The memory efficient miner uses 3 bits per edge and is bottlenecked by
-accessing random 2-bit counters, making it memory latency bound.  The roughly
-4x faster latency avoiding miner, a rewrite from xenoncat's bounty winning solver,
+accessing random 2-bit counters, making it memory latency bound. The core of this miner, where
+over 99% of time is spent, is also [relatively simple](doc/leancore).
+The roughly 4x faster latency avoiding miner, a rewrite from xenoncat's bounty winning solver,
 uses 33 bits per edge and is bottlenecked by bucket sorting, making it memory bandwidth bound.
 
 Hybrid ASICs
 ------------
 Its large memory requirements make single-chip ASICs economically infeasable for Cuckoo Cycle.
-For the default billion node graph size, the bandwidth bound solver needs well over 2GB,
-currently requiring a multitude of 1GB DRAM chips.
-DRAM can be viewed as an ASIC for writing and reading words of memory in mostly sequential fashion.
-As such, it's perhaps the most cost optimized, commoditized, and ubiquitous ASIC in existence,
+With a two billion node graph size, the latency bound solver needs 128 MB DRAM and 256/2^k MB SRAM,
+while the bandwidth bound solver needs a little over 4 GB DRAM.
+SRAM and DRAM can be viewed as ASICs for writing and reading words of memory in mostly random, respectively, sequential fashion.
+DRAM in particular is perhaps the most cost optimized, commoditized, and ubiquitous ASIC in existence,
 using moderate power on the order of 1W per chip.
-Every modern smart phone includes a few GBs of DRAM that mostly sits idle as it recharges overnight.
-This presents unique opportunities for a PoW that is minimally compute intensive and maximally memory intensive.
 
-A hybrid ASIC solution for Cuckoo Cycle pairs a bunch of DRAM chips with a small low-power ASIC,
-which needs to run just efficient enough to saturate the limited DRAM bandwidth.
-In terms of solutions per Joule of energy, this might be reasonably efficient mining platform.
-Adding such chips to devices already equipped with sufficient memory could make for a
-cost effective mining platform.
+A hybrid ASIC solution for Cuckoo Cycle pairs a bunch of DRAM (and possibly SRAM) chips with a small low-power ASIC,
+which needs to run just efficient enough to saturate the limited memory bandwidth.
+With power consumption and cost dominated by that of the memory chips,
+and the roles of ASIC design skills and fab access diminished, 
+miner manufacturers can compete on more equal terms.
+
+ASIC Commoditization
+--------------------
+Adding tiny cuckoo ASICs to devices already equipped with sufficient memory could make for a
+cost effective mining platform. Integration of a Cuckoo Cycle accelerator on future CPUs/GPUs,
+obviating the need for a separate chip, would yield the ultimate form of decentralization.
 
 An indirectly useful Proof of Work
 --------------
@@ -87,8 +93,8 @@ I claim that siphash-2-4 is a safe choice of underlying hash function,
 that these implementations are reasonably optimal,
 that trading off (less) memory for (more) running time,
 incurs at least one order of magnitude extra slowdown,
-and finally, that mean_miner.cu is a reasonably optimal GPU miner.
-The latter runs about 2.4x faster on an NVIDA 1080Ti than mean_miner on an Intel Core-i7 CPU.
+and finally, that meaner_miner.cu is a reasonably optimal GPU miner.
+The latter runs about 10x faster on an NVIDA 1080Ti than mean_miner on an Intel Core-i7 CPU.
 In support of these claims, I offer the following bounties:
 
 CPU Speedup Bounties
@@ -110,7 +116,7 @@ recent gcc compiler with regular flags as in my Makefile.
 GPU Speedup Bounty
 ------------------
 $5000 for an open source implementation for a consumer GPU
-that finds 42-cycles twice as fast as mean_miner.cu on 2^30 node graphs on comparable hardware.
+that finds 42-cycles twice as fast as meaner_miner.cu on 2^30 node graphs on comparable hardware.
 
 The Makefile defines corresponding targets leancpubounty, meancpubounty, tmtobounty, and gpubounty.
 
