@@ -703,8 +703,10 @@ extern "C" int cuckoo_call(char* header_data,
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
       u32* prf = &ctx_pool[device_id]->sols[s * PROOFSIZE];
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      for (u32 i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)prf[i]);
+        sol_nonces[i] = prf[i];
+      }
       printf("\n");
       int pow_rc = verify(prf, &ctx_pool[device_id]->trimmer->sipkeys);
       if (pow_rc == POW_OK) {
