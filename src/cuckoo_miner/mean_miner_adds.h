@@ -151,12 +151,13 @@ extern "C" int cuckoo_can_accept_job(){
   return 1;
 }
 
-bool cuckoo_internal_ready_for_hash(){
+bool cuckoo_internal_ready_for_data(){
   return !is_working;
 }
 
 struct InternalWorkerArgs {
-  char hash[32];
+  unsigned int length;
+  char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
 };
 
@@ -178,7 +179,7 @@ void *process_internal_worker (void *vp) {
   u32 response[PROOFSIZE];
 
   u64 start_time=timestamp();
-  int return_val=cuckoo_call(args->hash, sizeof(args->hash), response);
+  int return_val=cuckoo_call(args->data, args->length, response);
   update_stats(start_time);
 
   if (return_val==1){
@@ -193,9 +194,10 @@ void *process_internal_worker (void *vp) {
   pthread_exit(NULL);
 }
 
-int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
+int cuckoo_internal_process_data(unsigned char* data, int data_length, unsigned char* nonce){
   InternalWorkerArgs args;
-  memcpy(args.hash, hash, sizeof(args.hash));
+  args.length = data_length;
+  memcpy(args.data, data, data_length);
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
   is_working=true;
