@@ -338,7 +338,7 @@ extern "C" int cuckoo_get_parameter(char *param_name,
   return PROPERTY_RETURN_NOT_FOUND;
 }
 
-bool cuckoo_internal_ready_for_hash(){
+bool cuckoo_internal_ready_for_data(){
   //just return okay if a device is flagged as free
   for (int i=0;i<NUM_DEVICES;i++){
     if (!DEVICE_INFO[i].is_busy && !DEVICE_INFO[i].threw_error && DEVICE_INFO[i].use_device_param){
@@ -349,7 +349,8 @@ bool cuckoo_internal_ready_for_hash(){
 }
 
 struct InternalWorkerArgs {
-  unsigned char hash[32];
+  unsigned int length;
+  char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
   u32 device_id;
 };
@@ -380,7 +381,7 @@ void *process_internal_worker (void *vp) {
   u32 response[PROOFSIZE];
   u64 start_time=timestamp();
 
-  int return_val=cuckoo_call((char*) args->hash, sizeof(args->hash), response);
+  int return_val=cuckoo_call((char*) args->data, args->length, response);
   update_stats(args->device_id, start_time);
 
   if (return_val==1){
@@ -394,10 +395,11 @@ void *process_internal_worker (void *vp) {
   internal_processing_finished=true;
 }
 
-int cuckoo_internal_process_hash(unsigned char* hash, int hash_length, unsigned char* nonce){
+int cuckoo_internal_process_data(unsigned char* data, int data_length, unsigned char* nonce){
     //Not entirely sure... this should select a free device, then send it to the next available
     InternalWorkerArgs* args=new InternalWorkerArgs();
-    memcpy(args->hash, hash, sizeof(args->hash));
+    args->length = data_length;
+    memcpy(args->data, data, data_length);
     memcpy(args->nonce, nonce, sizeof(args->nonce));
     u32 device_id=next_free_device_id();
     args->device_id=device_id;
