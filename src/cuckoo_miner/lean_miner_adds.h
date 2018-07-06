@@ -157,6 +157,7 @@ bool cuckoo_internal_ready_for_data(){
 }
 
 struct InternalWorkerArgs {
+  int id;
   int length;
   char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
@@ -188,6 +189,7 @@ void *process_internal_worker (void *vp) {
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
+    output.id = args->id;
     OUTPUT_QUEUE.enqueue(output);  
   }
   update_stats(start_time);
@@ -196,9 +198,10 @@ void *process_internal_worker (void *vp) {
   pthread_exit(NULL);
 }
 
-int cuckoo_internal_process_data(unsigned char* data, int data_length, unsigned char* nonce){
+int cuckoo_internal_process_data(unsigned int id, unsigned char* data, int data_length, unsigned char* nonce){
   InternalWorkerArgs args;
   args.length = data_length;
+  args.id = id;
   memcpy(args.data, data, data_length);
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;

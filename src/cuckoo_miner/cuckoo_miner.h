@@ -192,6 +192,7 @@ std::atomic_bool should_quit(false);
 std::atomic_bool is_working(false);
 
 typedef struct queueInput {
+    unsigned int id;
     unsigned char nonce[8];
     unsigned int length;
     unsigned char data[MAX_DATA_LENGTH];
@@ -199,6 +200,7 @@ typedef struct queueInput {
 } QueueInput;
 
 typedef struct queueOutput {
+    unsigned int id;
     unsigned char nonce[8];
     u32 result_nonces[42];
     //other identifiers
@@ -216,7 +218,9 @@ extern "C" int cuckoo_is_queue_under_limit(){
     }
 }
 
-extern "C" int cuckoo_push_to_input_queue(unsigned char* data, 
+extern "C" int cuckoo_push_to_input_queue(
+                                   unsigned int id,
+                                   unsigned char* data,
                                    int data_length,
                                    unsigned char* nonce) {
     if (should_quit) return 4;
@@ -227,18 +231,20 @@ extern "C" int cuckoo_push_to_input_queue(unsigned char* data,
     assert(data_length <= sizeof(input.data));
     memcpy(input.data, data, data_length);
     memcpy(input.nonce, nonce, sizeof(input.nonce));
+    input.id = id;
     input.length = data_length;
     INPUT_QUEUE.enqueue(input);
     return 0;
 }
 
-extern "C" int cuckoo_read_from_output_queue(u32* output, unsigned char* nonce){
+extern "C" int cuckoo_read_from_output_queue(unsigned int* id, u32* output, unsigned char* nonce){
     if (should_quit) return 0;
     QueueOutput item;
     bool found = OUTPUT_QUEUE.try_dequeue(item);
     if (found){
         memcpy(nonce, item.nonce, sizeof(item.nonce));
         memcpy(output, item.result_nonces, sizeof(item.result_nonces));
+        *id = item.id;
         return 1;
     } else {
         return 0;
@@ -261,7 +267,7 @@ extern "C" void cuckoo_clear_queues(){
 //the plugin is ready to accept the next header data 
 static bool cuckoo_internal_ready_for_data();
 
-static int cuckoo_internal_process_data(unsigned char* data, int data_length, unsigned char* nonce);
+static int cuckoo_internal_process_data(unsigned int id, unsigned char* data, int data_length, unsigned char* nonce);
 
 void *cuckoo_process(void *args) {
     while(!should_quit){
@@ -269,7 +275,7 @@ void *cuckoo_process(void *args) {
 					QueueInput item;
 					bool found = INPUT_QUEUE.try_dequeue(item);
 					if (found){
-						cuckoo_internal_process_data(item.data, item.length, item.nonce);
+						cuckoo_internal_process_data(item.id, item.data, item.length, item.nonce);
 					} else {
 						break;
 					}

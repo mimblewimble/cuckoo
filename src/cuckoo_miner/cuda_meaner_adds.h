@@ -349,6 +349,7 @@ bool cuckoo_internal_ready_for_data(){
 }
 
 struct InternalWorkerArgs {
+  unsigned int id;
   unsigned int length;
   char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
@@ -389,15 +390,17 @@ void *process_internal_worker (void *vp) {
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
+    output.id = args->id;
     OUTPUT_QUEUE.enqueue(output);
   }
   delete(args);
   internal_processing_finished=true;
 }
 
-int cuckoo_internal_process_data(unsigned char* data, int data_length, unsigned char* nonce){
+int cuckoo_internal_process_data(unsigned int id, unsigned char* data, int data_length, unsigned char* nonce){
     //Not entirely sure... this should select a free device, then send it to the next available
     InternalWorkerArgs* args=new InternalWorkerArgs();
+    args->id = id;
     args->length = data_length;
     memcpy(args->data, data, data_length);
     memcpy(args->nonce, nonce, sizeof(args->nonce));
