@@ -751,7 +751,7 @@ extern "C" int cuckoo_call(char* header_data,
   int dunit;
   for (dunit=0; dbytes >= 10240; dbytes>>=10,dunit++) ;
   printf("%s with %d%cB @ %d bits x %dMHz\n", prop.name, (u32)dbytes, " KMGT"[dunit], prop.memoryBusWidth, prop.memoryClockRate/1000);
-  cudaSetDevice(device);
+  /*cudaSetDevice(device);*/
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
