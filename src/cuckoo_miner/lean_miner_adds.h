@@ -232,7 +232,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"in_use\":%d,\"has_errored\":%d,\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"cuckoo_size\":\"%d\",\"device_name\":\"%s\",\"in_use\":%d,\"has_errored\":%d,\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         return PROPERTY_RETURN_BUFFER_TOO_SMALL;
@@ -242,7 +242,7 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     pthread_mutex_lock (&device_info_mutex);
     int last_written=snprintf(prop_string+last_write_pos,
                           remaining, 
-                          device_stat_json, DEVICE_INFO.device_id, 
+                          device_stat_json, DEVICE_INFO.device_id, DEVICE_INFO.cuckoo_size,
                           DEVICE_INFO.device_name, DEVICE_INFO.in_use,
                           DEVICE_INFO.threw_error, DEVICE_INFO.last_start_time,
                           DEVICE_INFO.last_end_time, DEVICE_INFO.last_solution_time,

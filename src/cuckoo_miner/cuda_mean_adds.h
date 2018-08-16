@@ -32,6 +32,7 @@ u32 NUM_DEVICES=0;
 typedef class cudaDeviceInfo {
   public:
     int device_id;
+    int cuckoo_size;
     bool is_busy;
     cudaDeviceProp properties;
     //store the current hash rate
@@ -53,6 +54,7 @@ typedef class cudaDeviceInfo {
 
 cudaDeviceInfo::cudaDeviceInfo(){
     device_id=-1;
+    cuckoo_size=EDGEBITS + 1;
     is_busy=false;
     last_start_time=0;
     last_end_time=0;
@@ -107,7 +109,7 @@ void populate_device_info(){
 
 extern "C" int cuckoo_get_stats(char* prop_string, int* length){
     int remaining=*length;
-    const char* device_stat_json = "{\"device_id\":\"%d\",\"device_name\":\"%s\",\"in_use\":%d,\"has_errored\":%d,\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
+    const char* device_stat_json = "{\"device_id\":\"%d\",\"cuckoo_size\":\"%d\",\"device_name\":\"%s\",\"in_use\":%d,\"has_errored\":%d,\"last_start_time\":%lld,\"last_end_time\":%lld,\"last_solution_time\":%lld,\"iterations_completed\":%d}";
     //minimum return is "[]\0"
     if (remaining<=3){
         //TODO: Meaningful return code
@@ -121,9 +123,9 @@ extern "C" int cuckoo_get_stats(char* prop_string, int* length){
 		}
 
     for (int i=0;i<devices;i++){
-        int last_written=snprintf(prop_string+last_write_pos, 
-                              remaining, 
-                              device_stat_json, DEVICE_INFO[i].device_id, 
+        int last_written=snprintf(prop_string+last_write_pos,
+                              remaining,
+                              device_stat_json, DEVICE_INFO[i].device_id, DEVICE_INFO[i].cuckoo_size,
                               DEVICE_INFO[i].properties.name, DEVICE_INFO[i].use_device_param, 
                               DEVICE_INFO[i].threw_error, DEVICE_INFO[i].last_start_time,
                               DEVICE_INFO[i].last_end_time, DEVICE_INFO[i].last_solution_time,

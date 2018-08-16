@@ -151,6 +151,7 @@ static void print_buf(const char *title, const unsigned char *buf, size_t buf_le
 typedef class deviceInfo {
   public:
     int device_id;
+    int cuckoo_size;
     char device_name[256];
     bool is_busy;
     //store the current hash rate
@@ -167,6 +168,7 @@ typedef class deviceInfo {
 
 deviceInfo::deviceInfo(){
     device_id=0;
+    cuckoo_size=EDGEBITS + 1;
     is_busy=false;
     last_start_time=0;
     last_end_time=0;
