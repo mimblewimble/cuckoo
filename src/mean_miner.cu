@@ -378,15 +378,15 @@ struct edgetrimmer {
     checkCudaErrors(cudaMalloc((void**)&dipkeys, sizeof(siphash_keys)));
     checkCudaErrors(cudaMalloc((void**)&indexesE, indexesSize));
     checkCudaErrors(cudaMalloc((void**)&indexesE2, indexesSize));
-    size_t sizeA = ROW_EDGES_A * NX * (tp.memGB <= 5 ? sizeof(u32) : sizeof(uint2));
-    size_t sizeB = ROW_EDGES_B * NX * (tp.memGB <  5 ? sizeof(u32) : sizeof(uint2));
-    bufferSize = sizeA + sizeB;
+    sizeA = ROW_EDGES_A * NX * (tp.expand > 0 ? sizeof(u32) : sizeof(uint2));
+    sizeB = ROW_EDGES_B * NX * (tp.expand > 1 ? sizeof(u32) : sizeof(uint2));
+    const size_t bufferSize = sizeA + sizeB;
     checkCudaErrors(cudaMalloc((void**)&bufferA, bufferSize));
-    bufferB  = (ulonglong4 *)((char *)bufferA + sizeA);
-    bufferAB = (ulonglong4 *)((char *)bufferA + sizeB);
+    bufferB  = bufferA + sizeA / sizeof(ulonglong4);
+    bufferAB = bufferA + sizeB / sizeof(ulonglong4);
   }
   u64 globalbytes() const {
-    return bufferSize + 2 * indexesSize + sizeof(siphash_keys) + PROOFSIZE * 2 * sizeof(u32) + sizeof(edgetrimmer);
+    return (sizeA+sizeB) + 2 * indexesSize + sizeof(siphash_keys) + PROOFSIZE * 2 * sizeof(u32) + sizeof(edgetrimmer);
   }
   ~edgetrimmer() {
     cudaFree(bufferA);

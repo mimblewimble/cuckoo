@@ -69,7 +69,7 @@ cudaDeviceInfo::cudaDeviceInfo(){
 
 void cudaDeviceInfo::fill_tuning_params(){
     //TODO: Check device type and adjust to sensible defaults
-    tune_params[0]=7; //MEM_GB
+    tune_params[0]=0; //expand
     tune_params[1]=176; //N_TRIMS
     tune_params[2]=4096; //GEN_A_BLOCKS
     tune_params[3]=256; //GEN_A_TPB
@@ -188,7 +188,7 @@ extern "C" int cuckoo_init(){
   for (int i=0;i<NUM_TUNE_PARAMS;i++){
     PLUGIN_PROPERTY prop;
     switch (i) {
-			 case 0: {strcpy(prop.name,"MEM_GB\0"); prop.default_value = 7; break;}
+			 case 0: {strcpy(prop.name,"EXPAND\0"); prop.default_value = 0; break;}
 			 case 1: {strcpy(prop.name,"N_TRIMS\0"); prop.default_value = 176; break;}
 			 case 2: {strcpy(prop.name,"GEN_A_BLOCKS\0"); prop.default_value = 4096; break;}
 			 case 3: {strcpy(prop.name,"GEN_A_TPB\0"); prop.default_value = 256; break;}
@@ -268,7 +268,7 @@ extern "C" int cuckoo_set_parameter(char *param_name,
       return PROPERTY_RETURN_OUTSIDE_RANGE;
     }
   }
-	if (strcmp(compare_buf,"MEM_GB")==0){
+	if (strcmp(compare_buf,"EXPAND")==0){
     if (value>=PROPS[1].min_value && value<=PROPS[1].max_value){
        DEVICE_INFO[device_id].tune_params[0]=value;
        return PROPERTY_RETURN_OK;
@@ -355,7 +355,7 @@ extern "C" int cuckoo_get_parameter(char *param_name,
        *value = DEVICE_INFO[device_id].use_device_param;
        return PROPERTY_RETURN_OK;
   }
-  if (strcmp(compare_buf,"MEM_GB")==0){
+  if (strcmp(compare_buf,"EXPAND")==0){
        *value = DEVICE_INFO[device_id].tune_params[0];
        return PROPERTY_RETURN_OK;
   }
