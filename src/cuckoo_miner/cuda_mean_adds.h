@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Functions specific to cuda implementation
-#ifndef CUDA_MEANER_ADDS_H
-#define CUDA_MEANER_ADDS_H
+#ifndef CUDA_MEAN_ADDS_H
+#define CUDA_MEAN_ADDS_H
 
 #include "cuckoo_miner.h"
 
