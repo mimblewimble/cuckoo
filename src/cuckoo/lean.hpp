@@ -7,12 +7,12 @@
 // but avoids losing cycles to race conditions (not worth it in my testing)
 
 #include "cuckoo.h"
-#include "siphashxN.h"
+#include "../crypto/siphashxN.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #ifdef __APPLE__
-#include "osx_barrier.h"
+#include "../apple/osx_barrier.h"
 #endif
 #include <assert.h>
 

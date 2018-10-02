@@ -8,8 +8,8 @@
 #include <assert.h>
 #include <sys/time.h> // gettimeofday
 #include "cuckoo.h"
-#include "siphash.cuh"
-#include "blake2.h"
+#include "../crypto/siphash.cuh"
+#include "../crypto/blake2.h"
 
 #include "cuckoo_miner/cuda_mean_adds.h"
 
