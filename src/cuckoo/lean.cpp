@@ -1,28 +1,38 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2016 John Tromp
 
-#include "lean.hpp"
+#include "lean_miner.hpp"
 #include <unistd.h>
-#include <sys/time.h>
+#include <pthread.h>
+#ifdef __APPLE__
+#include "osx_barrier.h"
+#endif
+
+#include "cuckoo_miner/lean_miner_adds.h"
 
 #define MAXSOLS 8
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
-
-int main(int argc, char **argv) {
-  int nthreads = 1;
-  int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length,
+                           u32* sol_nonces){
+  if (SINGLE_MODE){
+    should_quit=false;
+  }
+  u64 start_time=timestamp();
+  int c;
   int nonce = 0;
   int range = 1;
-  char header[HEADERLEN];
-  unsigned len;
-  struct timeval time0, time1;
-  u32 timems;
-  int c;
 
-  memset(header, 0, sizeof(header));
-  while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
+  assert(NUM_THREADS_PARAM>0);
+
+  //assert(header_length <= sizeof(header_data));
+
+  print_buf("(Cuckoo Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
+
+  //memset(header, 0, sizeof(header));
+  /*while ((c = getopt (argc, argv, "h:m:n:r:t:")) != -1) {
     switch (c) {
       case 'h':
         len = strlen(optarg);
@@ -42,11 +52,12 @@ int main(int argc, char **argv) {
         nthreads = atoi(optarg);
         break;
     }
-  }
-  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header, nonce);
+  }*/
+
+  printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS+1, header_data, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
-  printf(") with 50%% edges, %d trims, %d threads\n", ntrims, nthreads);
+  printf(") with 50%% edges, %d trims, %d threads\n", NUM_TRIMS_PARAM, NUM_THREADS_PARAM);
 
   u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
   int edgeUnit, nodeUnit;
@@ -55,36 +66,51 @@ int main(int argc, char **argv) {
   printf("Using %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters\n",
      (int)edgeBytes, " KMGT"[edgeUnit], (int)nodeBytes, " KMGT"[nodeUnit], NSIPHASH, SIZEOF_TWICE_ATOM);
 
-  thread_ctx *threads = (thread_ctx *)calloc(nthreads, sizeof(thread_ctx));
+  thread_ctx *threads = (thread_ctx *)calloc(NUM_THREADS_PARAM, sizeof(thread_ctx));
   assert(threads);
-  cuckoo_ctx ctx(nthreads, ntrims, MAXSOLS);
+  cuckoo_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, MAXSOLS);
 
   u32 sumnsols = 0;
+  bool sol_found=false;
   for (int r = 0; r < range; r++) {
-    gettimeofday(&time0, 0);
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
-    for (int t = 0; t < nthreads; t++) {
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length);
+    printf("k0 %lx k1 %lx\n", ctx.sip_keys.k0, ctx.sip_keys.k1);
+    for (int t = 0; t < NUM_THREADS_PARAM; t++) {
       threads[t].id = t;
       threads[t].ctx = &ctx;
       int err = pthread_create(&threads[t].thread, NULL, worker, (void *)&threads[t]);
       assert(err == 0);
     }
-    for (int t = 0; t < nthreads; t++) {
+    for (int t = 0; t < NUM_THREADS_PARAM; t++) {
       int err = pthread_join(threads[t].thread, NULL);
       assert(err == 0);
     }
-    gettimeofday(&time1, 0);
-    timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
-    printf("Time: %d ms\n", timems);
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
-      for (int i = 0; i < PROOFSIZE; i++)
+      //just return with the first solution we get
+      for (int i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
+        sol_nonces[i] = ctx.sols[s][i]; 
+      }
+      free(threads);
       printf("\n");
+      if(SINGLE_MODE){
+         update_stats(start_time);
+      }
+      return 1;
     }
     sumnsols += ctx.nsols;
   }
   free(threads);
   printf("%d total solutions\n", sumnsols);
+  if(SINGLE_MODE){
+     update_stats(start_time);
+  }
   return 0;
 }
+
+
+
+
+

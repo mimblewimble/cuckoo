@@ -7,8 +7,8 @@
 // my own cycle finding is run single threaded to avoid losing cycles
 // to race conditions (typically takes under 1% of runtime)
 
-#include "cuckatoo.h"
-#include "../crypto/siphashxN.h"
+#include "cuckoo.h"
+#include "siphashxN.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -17,7 +17,7 @@
 #include <vector>
 #include <bitset>
 #ifdef __APPLE__
-#include "../apple/osx_barrier.h"
+#include "osx_barrier.h"
 #endif
 
 // algorithm/performance parameters
@@ -84,8 +84,6 @@
 
 typedef uint8_t u8;
 typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
 
 #if EDGEBITS >= 30
 typedef u64 offset_t;
@@ -316,6 +314,8 @@ public:
     u32 last[NX];;
 #endif
   
+    //STOP_PROCESSING
+    if (should_quit) return;
     rdtsc0 = __rdtsc();
     u8 const *base = (u8 *)buckets;
     indexer<ZBUCKETSIZE> dst;
@@ -356,6 +356,8 @@ public:
         last[x] = edge;
 #endif
       for (; edge < endedge; edge += NSIPHASH) {
+        //STOP_PROCESSING
+        if (should_quit) return;
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 #if NSIPHASH == 1
@@ -505,8 +507,8 @@ public:
     __m256i vpacket0, vpacket1, vhi0, vhi1;
     __m256i v0, v1, v2, v3, v4, v5, v6, v7;
 #endif
-    static const u32 NONDEGBITS = std::min(BIGSLOTBITS, 2 * YZBITS) - ZBITS;
-    static const u32 NONDEGMASK = (1 << NONDEGBITS) - 1;
+    const u32 NONDEGBITS = std::min(BIGSLOTBITS, 2 * YZBITS) - ZBITS;
+    const u32 NONDEGMASK = (1 << NONDEGBITS) - 1;
     indexer<ZBUCKETSIZE> dst;
     indexer<TBUCKETSIZE> small;
   
@@ -542,7 +544,7 @@ public:
           small.index[uy] += SMALLSIZE;
         }
         if (unlikely(edge >> NONYZBITS != (((my+1) << YZBITS) - 1) >> NONYZBITS))
-        { printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, ((my+1)<<YZBITS)-1); exit(0); }
+        { printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, ((my+1)<<YZBITS)-1); return; }
       }
       u8 *degs = tdegs[id];
       small.storeu(tbuckets+id, 0);
@@ -574,7 +576,7 @@ public:
           zs    += delta;
         }
         if (unlikely(edge >> NONDEGBITS != EDGEMASK >> NONDEGBITS))
-        { printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, EDGEMASK); exit(0); }
+        { printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, EDGEMASK); return; }
         assert(edges - edges0 < NTRIMMEDZ);
         const u16 *readz = tzs[id];
         const u32 *readedge = edges0;
@@ -694,6 +696,8 @@ public:
     for (u32 vx = startvx; vx < endvx; vx++) {
       small.matrixu(0);
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         u32 uxyz = ux << YZBITS;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         const u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -712,7 +716,7 @@ public:
           small.index[vy] += DSTSIZE;
         }
         if (unlikely(uxyz >> YZBITS != ux))
-        { printf("OOPS3: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); exit(0); }
+        { printf("OOPS3: id %d vx %d ux %d UXY %x\n", id, vx, ux, uxyz); return; }
       }
       u8 *degs = tdegs[id];
       small.storeu(tbuckets+id, 0);
@@ -771,6 +775,8 @@ public:
     for (u32 vx = startvx; vx < endvx; vx++) {
       small.matrixu(0);
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         u32 uyz = 0;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         const u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -843,7 +849,7 @@ public:
         }
         newnodeid += nrenames;
         if (TRIMONV && unlikely(ux >> SRCPREFBITS2 != XMASK >> SRCPREFBITS2))
-        { printf("OOPS6: id %d vx %d vy %d ux %x vs %x\n", id, vx, vy, ux, XMASK); exit(0); }
+        { printf("OOPS6: id %d vx %d vy %d ux %x vs %x\n", id, vx, vy, ux, XMASK); return; }
       }
       if (newnodeid > maxnnid)
         maxnnid = newnodeid;
@@ -867,6 +873,7 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+		  if (should_quit) return;
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0xff, NYZ1);
       for (u32 ux = 0 ; ux < NX; ux++) {
@@ -912,6 +919,7 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+		 if(should_quit) return;
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0xff, 2 * NYZ1); // sets each u16 entry to 0xffff
       for (u32 ux = 0 ; ux < NX; ux++) {
@@ -1039,7 +1047,7 @@ int nonce_cmp(const void *a, const void *b) {
   return *(u32 *)a - *(u32 *)b;
 }
 
-typedef word_t proof[PROOFSIZE];
+typedef u32 proof[PROOFSIZE];
 
 // break circular reference with forward declaration
 class solver_ctx;
@@ -1057,8 +1065,9 @@ public:
   bool showcycle;
   proof cycleus;
   proof cyclevs;
+  std::vector<u32> sols; // concatanation of all proof's indices
   std::bitset<NXY> uxymap;
-  std::vector<word_t> sols; // concatanation of all proof's indices
+  u32 reserved[512];
 
   solver_ctx(const u32 n_threads, const u32 n_trims, bool allrounds, bool show_cycle) {
     trimmer = new edgetrimmer(n_threads, n_trims, allrounds);
@@ -1068,6 +1077,10 @@ public:
   void setheadernonce(char* const headernonce, const u32 len, const u32 nonce) {
     ((u32 *)headernonce)[len/sizeof(u32)-1] = htole32(nonce); // place nonce at end
     setheader(headernonce, len, &trimmer->sip_keys);
+    sols.clear();
+  }
+  void setheadergrin(char* header, const u32 len) {
+    setheader(header, len, &trimmer->sip_keys);
     sols.clear();
   }
   ~solver_ctx() {
@@ -1164,6 +1177,8 @@ public:
     rdtsc0 = __rdtsc();
     for (u32 vx = 0; vx < NX; vx++) {
       for (u32 ux = 0 ; ux < NX; ux++) {
+        //STOP_PROCESSING
+        if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = trimmer->buckets[ux][vx];
         u32 *readbig = zb.words, *endreadbig = readbig + zb.size/sizeof(u32);
 // printf("vx %d ux %d size %u\n", vx, ux, zb.size/4);

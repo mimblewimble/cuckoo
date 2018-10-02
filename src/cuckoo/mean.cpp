@@ -5,13 +5,21 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+#include "cuckoo_miner/mean_miner_adds.h"
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
-int main(int argc, char **argv) {
-  u32 nthreads = 1;
-  u32 ntrims = EDGEBITS > 30 ? 96 : 68;
-  u32 nonce = 0;
+extern "C" int cuckoo_call(char* header_data, 
+                           int header_length,
+                           u32* sol_nonces){
+
+	u64 start_time=timestamp();
+  assert(NUM_THREADS_PARAM>0);
+	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
+
+  print_buf("(Mean Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
+  printf("Num Trims %d\n", NUM_TRIMS_PARAM);
   u32 range = 1;
 #ifdef SAVEEDGES
   bool showcycle = 1;
@@ -20,11 +28,11 @@ int main(int argc, char **argv) {
 #endif
   struct timeval time0, time1;
   u32 timems;
-  char header[HEADERLEN];
-  u32 len;
+  //char header[HEADERLEN];
+  //u32 len;
   bool allrounds = false;
-  int c;
-
+  //int c;
+/*
   memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "ah:m:n:r:st:x:")) != -1) {
     switch (c) {
@@ -63,22 +71,23 @@ int main(int argc, char **argv) {
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges\n");
-
-  solver_ctx ctx(nthreads, ntrims, allrounds, showcycle);
-
+  */
+  solver_ctx ctx(NUM_THREADS_PARAM, NUM_TRIMS_PARAM, allrounds, showcycle);
+  ctx.sols.reserve(10*PROOFSIZE);
   u64 sbytes = ctx.sharedbytes();
   u32 tbytes = ctx.threadbytes();
   int sunit,tunit;
   for (sunit=0; sbytes >= 10240; sbytes>>=10,sunit++) ;
   for (tunit=0; tbytes >= 10240; tbytes>>=10,tunit++) ;
   printf("Using %d%cB bucket memory at %lx,\n", sbytes, " KMGT"[sunit], (u64)ctx.trimmer->buckets);
-  printf("%dx%d%cB thread memory at %lx,\n", nthreads, tbytes, " KMGT"[tunit], (u64)ctx.trimmer->tbuckets);
+  printf("%dx%d%cB thread memory at %lx,\n", NUM_THREADS_PARAM, tbytes, " KMGT"[tunit], (u64)ctx.trimmer->tbuckets);
   printf("%d-way siphash, and %d buckets.\n", NSIPHASH, NX);
 
   u32 sumnsols = 0;
   for (u32 r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length);
     printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx.trimmer->sip_keys.k0, ctx.trimmer->sip_keys.k1, ctx.trimmer->sip_keys.k2, ctx.trimmer->sip_keys.k3);
     u32 nsols = ctx.solve();
     gettimeofday(&time1, 0);
@@ -87,9 +96,11 @@ int main(int argc, char **argv) {
 
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
-      word_t *prf = &ctx.sols[s * PROOFSIZE];
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      u32* prf = &ctx.sols[s * PROOFSIZE];
+      for (u32 i = 0; i < PROOFSIZE; i++){
         printf(" %jx", (uintmax_t)prf[i]);
+        sol_nonces[i] = prf[i];
+      }
       printf("\n");
       int pow_rc = verify(prf, &ctx.trimmer->sip_keys);
       if (pow_rc == POW_OK) {
@@ -99,6 +110,10 @@ int main(int argc, char **argv) {
         for (int i=0; i<32; i++)
           printf("%02x", cyclehash[i]);
         printf("\n");
+        if(SINGLE_MODE){
+         update_stats(start_time);
+        }
+        return 1;
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
@@ -106,5 +121,8 @@ int main(int argc, char **argv) {
     sumnsols += nsols;
   }
   printf("%d total solutions\n", sumnsols);
+  if (SINGLE_MODE) {
+    update_stats(start_time);
+  }
   return 0;
 }

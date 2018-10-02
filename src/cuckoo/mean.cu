@@ -11,6 +11,8 @@
 #include "siphash.cuh"
 #include "blake2.h"
 
+#include "cuckoo_miner/cuda_mean_adds.h"
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 
@@ -282,12 +284,18 @@ __global__ void Tail(const uint2 *source, uint2 *destination, const int *sourceI
     destination[destIdx + lid] = source[group * maxIn + lid];
 }
 
-#define checkCudaErrors(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-  if (code != cudaSuccess) {
-    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort) exit(code);
+#define checkCudaErrors(ans) ({ int retval; retval = gpuAssert((ans), __FILE__, __LINE__); retval; })
+inline int gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+  int device_id;
+  cudaGetDevice(&device_id);
+	//Only spit this to logs once, then flag device to stop trying
+  if (code != cudaSuccess && !DEVICE_INFO[device_id].threw_error) {
+    fprintf(stderr,"Device %d GPUassert: %s %s %d\n", device_id, cudaGetErrorString(code), file, line);
+    cudaDeviceReset();
+    mark_device_error(device_id);
+    if (abort) return code;
   }
+  return 0;
 }
 
 __global__ void Recovery(const siphash_keys &sipkeys, ulonglong4 *buffer, int *indexes) {
@@ -409,7 +417,7 @@ struct edgetrimmer {
     else
       SeedA<EDGES_A,   u32><<<tp.genA.blocks, tp.genA.tpb>>>(*dipkeys, bufferAB, (int *)indexesE);
   
-    checkCudaErrors(cudaDeviceSynchronize()); cudaEventRecord(stop, NULL);
+    if(checkCudaErrors(cudaDeviceSynchronize())) return 0; cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop); cudaEventElapsedTime(&durationA, start, stop);
     cudaEventRecord(start, NULL);
   
@@ -423,7 +431,7 @@ struct edgetrimmer {
       SeedB<EDGES_A,   u32><<<tp.genB.blocks/2, tp.genB.tpb>>>(*dipkeys, (const   u32 *)(bufferAB+halfA), bufferA+halfA, (const int *)(indexesE+halfE), indexesE2+halfE);
     }
 
-    checkCudaErrors(cudaDeviceSynchronize()); cudaEventRecord(stop, NULL);
+    if(checkCudaErrors(cudaDeviceSynchronize())) return 0; cudaEventRecord(stop, NULL);
     cudaEventSynchronize(stop); cudaEventElapsedTime(&durationB, start, stop);
     printf("Seeding completed in %.0f + %.0f ms\n", durationA, durationB);
   
@@ -536,6 +544,10 @@ struct solver_ctx {
     setheader(headernonce, len, &trimmer->sipkeys);
     sols.clear();
   }
+  void setheadergrin(const char* header, const u32 len) {
+    setheader(header, len, &trimmer->sipkeys);
+    sols.clear();
+  }
   ~solver_ctx() {
     delete cuckoo;
     delete[] edges;
@@ -547,7 +559,7 @@ struct solver_ctx {
     soledges[i].y = v2/2;
   }
 
-  void solution(const u32 *us, u32 nu, const u32 *vs, u32 nv) {
+  int solution(const u32 *us, u32 nu, const u32 *vs, u32 nv) {
     u32 ni = 0;
     recordedge(ni++, *us, *vs);
     while (nu--)
@@ -560,8 +572,9 @@ struct solver_ctx {
     cudaMemset(trimmer->indexesE2, 0, trimmer->indexesSize);
     Recovery<<<trimmer->tp.recover.blocks, trimmer->tp.recover.tpb>>>(*trimmer->dipkeys, trimmer->bufferA, (int *)trimmer->indexesE2);
     cudaMemcpy(&sols[sols.size()-PROOFSIZE], trimmer->indexesE2, PROOFSIZE * sizeof(u32), cudaMemcpyDeviceToHost);
-    checkCudaErrors(cudaDeviceSynchronize());
+    if(checkCudaErrors(cudaDeviceSynchronize())) return 0;
     qsort(&sols[sols.size()-PROOFSIZE], PROOFSIZE, sizeof(u32), nonce_cmp);
+    return 1;
   }
 
   u32 path(u32 u, u32 *us) {
@@ -638,11 +651,20 @@ struct solver_ctx {
 
 #include <unistd.h>
 
+// should be set to the maximum number of cards that can be run
+// in parallel on one machine
+const int MAX_CTX_INSTANCES = 20;
+static solver_ctx* ctx_pool[MAX_CTX_INSTANCES];
+static bool ctx_init[MAX_CTX_INSTANCES]={false};
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
-int main(int argc, char **argv) {
+extern "C" int cuckoo_call(char* header_data,
+                           int header_length,
+                           u32* sol_nonces ) {
   trimparams tp;
+  u64 start_time=timestamp();
   u32 nonce = 0;
   u32 range = 1;
   u32 device = 0;
@@ -650,16 +672,13 @@ int main(int argc, char **argv) {
   u32 len;
   int c;
 
+  /*
   memset(header, 0, sizeof(header));
   while ((c = getopt(argc, argv, "sb:c:d:E:h:k:m:n:r:U:u:v:w:y:Z:z:")) != -1) {
     switch (c) {
       case 's':
         printf("SYNOPSIS\n  cuda%d [-d device] [-E 0-2] [-h hexheader] [-m trims] [-n nonce] [-r range] [-U seedAblocks] [-u seedAthreads] [-v seedBthreads] [-w Trimthreads] [-y Tailthreads] [-Z recoverblocks] [-z recoverthreads]\n", NODEBITS);
         printf("DEFAULTS\n  cuda%d -d %d -E %d -h \"\" -m %d -n %d -r %d -U %d -u %d -v %d -w %d -y %d -Z %d -z %d\n", NODEBITS, device, tp.expand, tp.ntrims, nonce, range, tp.genA.blocks, tp.genA.tpb, tp.genB.tpb, tp.trim.tpb, tp.tail.tpb, tp.recover.blocks, tp.recover.tpb);
-        exit(0);
-      case 'd':
-        device = atoi(optarg);
-        break;
       case 'E':
         tp.expand = atoi(optarg);
         assert(tp.expand <= 2);
@@ -707,6 +726,23 @@ int main(int argc, char **argv) {
   assert(device < nDevices);
   cudaDeviceProp prop;
   checkCudaErrors(cudaGetDeviceProperties(&prop, device));
+  */
+ 	int device_id;
+	cudaGetDevice(&device_id);
+
+	cudaDeviceProp prop;
+  if (checkCudaErrors(cudaGetDeviceProperties(&prop, device_id))) return 0;
+
+	tp.expand               = DEVICE_INFO[device_id].tune_params[0];
+	tp.ntrims              = DEVICE_INFO[device_id].tune_params[1];
+  tp.genA.blocks         = DEVICE_INFO[device_id].tune_params[2];
+  tp.genA.tpb            = DEVICE_INFO[device_id].tune_params[3];
+  tp.genB.tpb            = DEVICE_INFO[device_id].tune_params[4];
+  tp.trim.tpb            = DEVICE_INFO[device_id].tune_params[5];
+  tp.tail.tpb            = DEVICE_INFO[device_id].tune_params[6];
+  tp.recover.blocks      = DEVICE_INFO[device_id].tune_params[7];
+  tp.recover.tpb         = DEVICE_INFO[device_id].tune_params[8];
+
   assert(tp.genA.tpb <= prop.maxThreadsPerBlock);
   assert(tp.genB.tpb <= prop.maxThreadsPerBlock);
   assert(tp.trim.tpb <= prop.maxThreadsPerBlock);
@@ -717,33 +753,38 @@ int main(int argc, char **argv) {
   int dunit;
   for (dunit=0; dbytes >= 10240; dbytes>>=10,dunit++) ;
   printf("%s with %d%cB @ %d bits x %dMHz\n", prop.name, (u32)dbytes, " KMGT"[dunit], prop.memoryBusWidth, prop.memoryClockRate/1000);
-  cudaSetDevice(device);
+  /*cudaSetDevice(device);*/
 
   printf("Looking for %d-cycle on cuckoo%d(\"%s\",%d", PROOFSIZE, NODEBITS, header, nonce);
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with 50%% edges, %d*%d buckets, %d trims, and %d thread blocks.\n", NX, NY, tp.ntrims, NX);
 
-  solver_ctx ctx(tp);
+  if (!ctx_init[device_id]){
+    ctx_pool[device_id]=new solver_ctx(tp);
+    ctx_init[device_id] = true;
+  }
 
-  u64 bytes = ctx.trimmer->globalbytes();
+  u64 bytes = ctx_pool[device_id]->trimmer->globalbytes();
   int unit;
   for (unit=0; bytes >= 10240; bytes>>=10,unit++) ;
   printf("Using %d%cB of global memory.\n", (u32)bytes, " KMGT"[unit]);
 
-  cudaSetDevice(device);
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx_pool[device_id]->setheadergrin(header_data, header_length);
     printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx.trimmer->sipkeys.k0, ctx.trimmer->sipkeys.k1, ctx.trimmer->sipkeys.k2, ctx.trimmer->sipkeys.k3);
-    u32 nsols = ctx.solve();
+    u32 nsols = ctx_pool[device_id]->solve();
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");
-      u32* prf = &ctx.sols[s * PROOFSIZE];
-      for (u32 i = 0; i < PROOFSIZE; i++)
+      u32* prf = &ctx_pool[device_id]->sols[s * PROOFSIZE];
+      for (u32 i = 0; i < PROOFSIZE; i++){
         printf(" %jx", (uintmax_t)prf[i]);
+        sol_nonces[i] = prf[i];
+      }
       printf("\n");
-      int pow_rc = verify(prf, &ctx.trimmer->sipkeys);
+      int pow_rc = verify(prf, &ctx_pool[device_id]->trimmer->sipkeys);
       if (pow_rc == POW_OK) {
         printf("Verified with cyclehash ");
         unsigned char cyclehash[32];
@@ -754,9 +795,19 @@ int main(int argc, char **argv) {
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
+      //Just return first solution for now
+      // TODO: Probably skip verify above
+      if (SINGLE_MODE){
+         update_stats(0, start_time);
+      }
+      return 1;
     }
     sumnsols += nsols;
   }
   printf("%d total solutions\n", sumnsols);
+  if (SINGLE_MODE){
+     printf("single mode\n");
+     update_stats(0,start_time);
+  }
   return 0;
 }
