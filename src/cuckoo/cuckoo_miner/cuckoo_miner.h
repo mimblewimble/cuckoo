@@ -42,6 +42,8 @@
 size_t MAX_QUEUE_SIZE=20;
 bool SINGLE_MODE=true;
 
+typedef uint64_t u64;
+
 u64 timestamp() {
 	using namespace std::chrono;
 	high_resolution_clock::time_point now = high_resolution_clock::now();

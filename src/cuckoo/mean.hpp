@@ -20,6 +20,8 @@
 #include "../apple/osx_barrier.h"
 #endif
 
+#include "cuckoo_miner/cuckoo_miner.h"
+
 // algorithm/performance parameters
 
 // EDGEBITS/NEDGES/EDGEMASK defined in cuckoo.h

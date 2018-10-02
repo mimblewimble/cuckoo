@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-#include "cuckoo_miner/mean_miner_adds.h"
+#include "cuckoo_miner/mean_adds.h"
 
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
