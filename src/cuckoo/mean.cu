@@ -11,7 +11,7 @@
 #include "../crypto/siphash.cuh"
 #include "../crypto/blake2.h"
 
-#include "cuckoo_miner/cuda_mean_adds.h"
+#include "../adds/cuda_mean_adds.h"
 
 typedef uint8_t u8;
 typedef uint16_t u16;

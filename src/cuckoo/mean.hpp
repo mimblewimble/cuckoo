@@ -20,7 +20,7 @@
 #include "../apple/osx_barrier.h"
 #endif
 
-#include "cuckoo_miner/cuckoo_miner.h"
+#include "../adds/mean_adds.h"
 
 // algorithm/performance parameters
 

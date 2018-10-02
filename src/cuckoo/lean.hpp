@@ -15,7 +15,8 @@
 #include "../apple/osx_barrier.h"
 #endif
 #include <assert.h>
-#include "cuckoo_miner/cuckoo_miner.h"
+
+#include "../adds/cuckoo_miner.h"
 
 typedef uint64_t u64;
 

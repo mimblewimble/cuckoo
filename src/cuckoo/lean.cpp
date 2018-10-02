@@ -8,7 +8,7 @@
 #include "osx_barrier.h"
 #endif
 
-#include "cuckoo_miner/lean_adds.h"
+#include "../adds/lean_adds.h"
 
 #define MAXSOLS 8
 // arbitrary length of header hashed into siphash key
