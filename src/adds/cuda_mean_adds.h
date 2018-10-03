@@ -218,30 +218,6 @@ extern "C" int cuckoo_init(){
   return PROPERTY_RETURN_OK;
 }
 
-extern "C" void cuckoo_description(char * name_buf,
-                              int* name_buf_len,
-                              char *description_buf,
-                              int* description_buf_len){
-  
-  //TODO: check we don't exceed lengths.. just keep it under 256 for now
-  int REQUIRED_SIZE=256;
-  if (*name_buf_len < REQUIRED_SIZE || *description_buf_len < REQUIRED_SIZE){
-    *name_buf_len=0;
-    *description_buf_len=0;
-    return;
-  }
-
-  const char* name = "cuckoo_lean_cuda_%d\0";
-  sprintf(name_buf, name, EDGEBITS+1);
-  *name_buf_len = strlen(name);
-  
-  const char* desc1 = "Looks for %d-cycle on cuckoo_%d using nVidia CUDA miner\0";
-  
-  sprintf(description_buf, desc1, PROOFSIZE, EDGEBITS+1);
-  *description_buf_len = strlen(description_buf);
- 
-}
-
 /// Return a simple json list of parameters
 
 extern "C" int cuckoo_parameter_list(char *params_out_buf,

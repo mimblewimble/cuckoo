@@ -5,22 +5,34 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+#include "../adds/lean_adds.h"
+#define MAXSOLS 8
+
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
+extern "C" int cuckoo_call(char* header_data,
+                           int header_length,
+                           u32* sol_nonces){
 
-int main(int argc, char **argv) {
-  int nthreads = 1;
+  if (SINGLE_MODE){
+    should_quit=false;
+  }
+  u64 start_time=timestamp();
+  int nthreads = NUM_THREADS_PARAM;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
   int nonce = 0;
   int range = 1;
-  char header[HEADERLEN];
+  /*char header[HEADERLEN];*/
   unsigned len;
   struct timeval time0, time1;
   u32 timems;
   int c;
 
-  memset(header, 0, sizeof(header));
+  assert(nthreads>0);
+  print_buf("(Cuckoo Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
+
+  /*memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "h:n:r:t:")) != -1) {
     switch (c) {
       case 'h':
@@ -39,7 +51,7 @@ int main(int argc, char **argv) {
         break;
     }
   }
-  printf("Looking for %d-cycle on cuckatoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS, header, nonce);
+  printf("Looking for %d-cycle on cuckatoo%d(\"%s\",%d", PROOFSIZE, EDGEBITS, header_data, 0);*/
   if (range > 1)
     printf("-%d", nonce+range-1);
   printf(") with trimming to %d bits, %d threads\n", EDGEBITS-IDXSHIFT, nthreads);
@@ -55,12 +67,13 @@ int main(int argc, char **argv) {
 
   thread_ctx *threads = new thread_ctx[nthreads];
   assert(threads);
-  cuckoo_ctx ctx(nthreads, ntrims, MAXSOLS);
+  cuckoo_ctx ctx(nthreads, NUM_TRIMS_PARAM, MAXSOLS);
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {
     gettimeofday(&time0, 0);
-    ctx.setheadernonce(header, sizeof(header), nonce + r);
+    //ctx.setheadernonce(header, sizeof(header), nonce + r);
+    ctx.setheadergrin(header_data, header_length);
     printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx.sip_keys.k0, ctx.sip_keys.k1, ctx.sip_keys.k2, ctx.sip_keys.k3);
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
@@ -77,8 +90,11 @@ int main(int argc, char **argv) {
     printf("Time: %d ms\n", timems);
     for (unsigned s = 0; s < ctx.nsols; s++) {
       printf("Solution");
-      for (int i = 0; i < PROOFSIZE; i++)
+      // Just return first solution we get
+      for (int i = 0; i < PROOFSIZE; i++) {
         printf(" %jx", (uintmax_t)ctx.sols[s][i]);
+        sol_nonces[i] = ctx.sols[s][i];
+      }
       printf("\n");
       int pow_rc = verify(ctx.sols[s], &ctx.sip_keys);
       if (pow_rc == POW_OK) {
@@ -88,6 +104,7 @@ int main(int argc, char **argv) {
         for (int i=0; i<32; i++)
           printf("%02x", cyclehash[i]);
         printf("\n");
+        return 1;
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
@@ -96,5 +113,8 @@ int main(int argc, char **argv) {
   }
   delete[] threads;
   printf("%d total solutions\n", sumnsols);
+  if(SINGLE_MODE){
+     update_stats(start_time);
+  }
   return 0;
 }

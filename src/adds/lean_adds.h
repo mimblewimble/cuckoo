@@ -60,39 +60,6 @@ extern "C" int cuckoo_init(){
   return PROPERTY_RETURN_OK;
 }
 
-/**
- * Returns a description
- */
-
-extern "C" void cuckoo_description(char * name_buf,
-                              int* name_buf_len,
-                              char *description_buf,
-                              int* description_buf_len){
-
-  //TODO: check we don't exceed lengths.. just keep it under 256 for now
-	int REQUIRED_SIZE=256;
-	if (*name_buf_len < REQUIRED_SIZE || *description_buf_len < REQUIRED_SIZE){
-		*name_buf_len=0;
-		*description_buf_len=0;
-		return;
-	}
-  int name_buf_len_in = *name_buf_len;
-  const char* name = "cuckoo_lean_cpu_%d\0";
-  sprintf(name_buf, name, EDGEBITS+1);
-  *name_buf_len = strlen(name);
-
-  const char* desc1 = "Looks for a %d-cycle on cuckoo%d with 50%% edges using lean CPU algorithm.\n \
-  Uses %d%cB edge and %d%cB node memory, %d-way siphash, and %d-byte counters.\0";
-
-  u64 edgeBytes = NEDGES/8, nodeBytes = TWICE_ATOMS*sizeof(atwice);
-  int edgeUnit, nodeUnit;
-  for (edgeUnit=0; edgeBytes >= 1024; edgeBytes>>=10,edgeUnit++) ;
-  for (nodeUnit=0; nodeBytes >= 1024; nodeBytes>>=10,nodeUnit++) ;
-  sprintf(description_buf, desc1,     
-  PROOFSIZE, EDGEBITS+1, (int)edgeBytes, " KMGT"[edgeUnit], (int)nodeBytes, " KMGT"[nodeUnit], NSIPHASH, SIZEOF_TWICE_ATOM);
-  *description_buf_len = strlen(description_buf);
-}
-
 /// Return a simple json list of parameters
 
 extern "C" int cuckoo_parameter_list(char *params_out_buf,

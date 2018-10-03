@@ -17,6 +17,8 @@
 #endif
 #include <assert.h>
 
+#include "../adds/cuckoo_miner.h"
+
 #ifndef MAXSOLS
 #define MAXSOLS 4
 #endif
@@ -134,6 +136,12 @@ public:
     ((u32 *)headernonce)[len/sizeof(u32)-1] = htole32(nonce); // place nonce at end
     setheader(headernonce, len, &sip_keys);
     alive.clear(); // set all edges to be alive
+    nsols = 0;
+  }
+  void setheadergrin(char* header, const u32 len) {
+    nonce = 0;
+    setheader(header, len, &sip_keys);
+    alive.clear();
     nsols = 0;
   }
   ~cuckoo_ctx() {
