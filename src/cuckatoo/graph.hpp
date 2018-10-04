@@ -5,6 +5,8 @@
 #include "compress.hpp"
 #include <new>
 
+#include "../adds/cuckoo_miner.h"
+
 typedef word_t proof[PROOFSIZE];
 
 // cuck(at)oo graph with given limit on number of edges (and on single partition nodes)

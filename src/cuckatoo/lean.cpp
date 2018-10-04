@@ -30,7 +30,7 @@ extern "C" int cuckoo_call(char* header_data,
   int c;
 
   assert(nthreads>0);
-  print_buf("(Cuckoo Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
+  print_buf("(Cuckatoo Miner) Coming in is: ", (const unsigned char*) header_data, header_length);
 
   /*memset(header, 0, sizeof(header));
   while ((c = getopt (argc, argv, "h:n:r:t:")) != -1) {
@@ -104,12 +104,14 @@ extern "C" int cuckoo_call(char* header_data,
         for (int i=0; i<32; i++)
           printf("%02x", cyclehash[i]);
         printf("\n");
+        delete[] threads;
         return 1;
       } else {
         printf("FAILED due to %s\n", errstr[pow_rc]);
       }
       sumnsols += ctx.nsols;
     }
+		printf("LOOPING\n");
   }
   delete[] threads;
   printf("%d total solutions\n", sumnsols);
