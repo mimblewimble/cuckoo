@@ -20,6 +20,10 @@ extern "C" int cuckoo_call(char* header_data,
     should_quit=false;
   }
   *cuckoo_size = EDGEBITS;
+  pthread_mutex_lock (&device_info_mutex);
+  DEVICE_INFO.cuckoo_size = EDGEBITS;
+  pthread_mutex_unlock (&device_info_mutex);
+
   u64 start_time=timestamp();
   int nthreads = NUM_THREADS_PARAM;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;
