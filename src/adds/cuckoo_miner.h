@@ -199,16 +199,15 @@ typedef struct queueInput {
     unsigned int id;
     unsigned char nonce[8];
     unsigned int length;
-    unsigned int cuckoo_size;
     unsigned char data[MAX_DATA_LENGTH];
     //other identifiers
 } QueueInput;
 
 typedef struct queueOutput {
-    unsigned int id;
+    u32 id;
     unsigned char nonce[8];
     u32 result_nonces[42];
-    unsigned int cuckoo_size;
+    u32 cuckoo_size;
 } QueueOutput;
 
 moodycamel::ConcurrentQueue<QueueInput> INPUT_QUEUE;
@@ -224,10 +223,9 @@ extern "C" int cuckoo_is_queue_under_limit(){
 }
 
 extern "C" int cuckoo_push_to_input_queue(
-                                   unsigned int id,
+                                   u32 id,
                                    unsigned char* data,
-                                   int data_length,
-                                   int cuckoo_size,
+                                   u32 data_length,
                                    unsigned char* nonce) {
     if (should_quit) return 4;
     if (data_length > MAX_DATA_LENGTH) return 2;
@@ -239,12 +237,11 @@ extern "C" int cuckoo_push_to_input_queue(
     memcpy(input.nonce, nonce, sizeof(input.nonce));
     input.id = id;
     input.length = data_length;
-    input.cuckoo_size = cuckoo_size;
     INPUT_QUEUE.enqueue(input);
     return 0;
 }
 
-extern "C" int cuckoo_read_from_output_queue(unsigned int* id, u32* output, unsigned int* cuckoo_size, unsigned char* nonce){
+extern "C" int cuckoo_read_from_output_queue(u32* id, u32* output, u32* cuckoo_size, unsigned char* nonce){
     if (should_quit) return 0;
     QueueOutput item;
     bool found = OUTPUT_QUEUE.try_dequeue(item);

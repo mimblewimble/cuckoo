@@ -125,10 +125,10 @@ bool cuckoo_internal_ready_for_data(){
 }
 
 struct InternalWorkerArgs {
-  int id;
+  u32 id;
   int length;
   char data[MAX_DATA_LENGTH];
-  unsigned int cuckoo_size;
+  u32 cuckoo_size;
   unsigned char nonce[8];
 };
 
@@ -152,7 +152,6 @@ void *process_internal_worker (void *vp) {
 
   u64 start_time=timestamp();
   int return_val=cuckoo_call(args->data, args->length, &args->cuckoo_size, response);
-
   if (return_val==1){
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
@@ -160,7 +159,7 @@ void *process_internal_worker (void *vp) {
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     output.id = args->id;
     output.cuckoo_size = args->cuckoo_size;
-    OUTPUT_QUEUE.enqueue(output);  
+    OUTPUT_QUEUE.enqueue(output);
   }
   update_stats(start_time);
   is_working=false;

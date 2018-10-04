@@ -145,7 +145,6 @@ public:
     nsols = 0;
   }
   ~cuckoo_ctx() {
-	  printf("DESTRUCTING\n");
     delete[] sols;
   }
   void prefetch(const u64 *hashes, const u32 part) const {
@@ -248,9 +247,6 @@ void barrier(pthread_barrier_t *barry) {
 void *worker(void *vp) {
   thread_ctx *tp = (thread_ctx *)vp;
   cuckoo_ctx *ctx = tp->ctx;
-  if (ctx == NULL) {
-     printf("THIS IS NULL WTF\n");
-  }
   if(should_quit){
      pthread_exit(NULL);
   }
