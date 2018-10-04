@@ -662,9 +662,11 @@ static bool ctx_init[MAX_CTX_INSTANCES]={false};
 
 extern "C" int cuckoo_call(char* header_data,
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces ) {
   trimparams tp;
   u64 start_time=timestamp();
+  *cuckoo_size = EDGEBITS + 1;
   u32 nonce = 0;
   u32 range = 1;
   u32 device = 0;

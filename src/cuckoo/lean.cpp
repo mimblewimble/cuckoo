@@ -14,13 +14,15 @@
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
 
-extern "C" int cuckoo_call(char* header_data, 
+extern "C" int cuckoo_call(char* header_data,
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces){
   if (SINGLE_MODE){
     should_quit=false;
   }
   u64 start_time=timestamp();
+  *cuckoo_size = EDGEBITS + 1;
   int c;
   int nonce = 0;
   int range = 1;

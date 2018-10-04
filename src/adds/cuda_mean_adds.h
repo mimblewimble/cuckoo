@@ -21,6 +21,7 @@
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces);
 
 pthread_mutex_t device_info_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -387,6 +388,7 @@ struct InternalWorkerArgs {
   unsigned int length;
   char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
+  unsigned char cuckoo_size;
   u32 device_id;
 };
 
@@ -416,7 +418,7 @@ void *process_internal_worker (void *vp) {
   u32 response[PROOFSIZE];
   u64 start_time=timestamp();
 
-  int return_val=cuckoo_call((char*) args->data, args->length, response);
+  int return_val=cuckoo_call((char*) args->data, args->length, &args->cuckoo_size, response);
   update_stats(args->device_id, start_time);
 
   if (return_val==1){
@@ -425,6 +427,7 @@ void *process_internal_worker (void *vp) {
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     output.id = args->id;
+    output.cuckoo_size = args->cuckoo_size;
     OUTPUT_QUEUE.enqueue(output);
   }
   delete(args);

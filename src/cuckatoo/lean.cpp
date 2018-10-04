@@ -13,11 +13,13 @@
 
 extern "C" int cuckoo_call(char* header_data,
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces){
 
   if (SINGLE_MODE){
     should_quit=false;
   }
+  *cuckoo_size = EDGEBITS;
   u64 start_time=timestamp();
   int nthreads = NUM_THREADS_PARAM;
   int ntrims   = 1 + (PART_BITS+3)*(PART_BITS+4)/2;

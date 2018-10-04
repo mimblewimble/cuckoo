@@ -12,10 +12,12 @@
 
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces){
 
 	u64 start_time=timestamp();
   assert(NUM_THREADS_PARAM>0);
+  *cuckoo_size = EDGEBITS + 1;
 	NUM_TRIMS_PARAM = NUM_TRIMS_PARAM & -2;//Make even
 
   print_buf("(Mean Miner) Coming in is: ", (const unsigned char*) header_data, header_length);

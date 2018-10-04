@@ -28,6 +28,7 @@ deviceInfo DEVICE_INFO;
 //forward dec
 extern "C" int cuckoo_call(char* header_data, 
                            int header_length,
+                           unsigned int* cuckoo_size,
                            u32* sol_nonces);
 void populate_device_info();
 
@@ -130,6 +131,7 @@ struct InternalWorkerArgs {
   unsigned int id;
   unsigned int length;
   char data[MAX_DATA_LENGTH];
+  unsigned int cuckoo_size;
   unsigned char nonce[8];
 };
 
@@ -151,7 +153,7 @@ void *process_internal_worker (void *vp) {
   u32 response[PROOFSIZE];
 
   u64 start_time=timestamp();
-  int return_val=cuckoo_call(args->data, args->length, response);
+  int return_val=cuckoo_call(args->data, args->length, &args->cuckoo_size, response);
   update_stats(start_time);
 
   if (return_val==1){
@@ -160,7 +162,8 @@ void *process_internal_worker (void *vp) {
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     output.id = args->id;
-    OUTPUT_QUEUE.enqueue(output);  
+    output.cuckoo_size = args->cuckoo_size;
+    OUTPUT_QUEUE.enqueue(output);
   }
   is_working=false;
   internal_processing_finished=true;
