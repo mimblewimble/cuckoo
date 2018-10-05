@@ -10,7 +10,6 @@
 
 // arbitrary length of header hashed into siphash key
 #define HEADERLEN 80
-
 extern "C" int cuckoo_call(char* header_data,
                            int header_length,
                            unsigned int* cuckoo_size,
@@ -117,7 +116,6 @@ extern "C" int cuckoo_call(char* header_data,
       }
       sumnsols += ctx.nsols;
     }
-		printf("LOOPING\n");
   }
   delete[] threads;
   printf("%d total solutions\n", sumnsols);

@@ -15,6 +15,7 @@
 
 typedef uint8_t u8;
 typedef uint16_t u16;
+typedef uint64_t u64;
 
 typedef u32 node_t;
 typedef u64 nonce_t;
@@ -776,7 +777,7 @@ extern "C" int cuckoo_call(char* header_data,
   for (int r = 0; r < range; r++) {
     //ctx.setheadernonce(header, sizeof(header), nonce + r);
     ctx_pool[device_id]->setheadergrin(header_data, header_length);
-    printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx.trimmer->sipkeys.k0, ctx.trimmer->sipkeys.k1, ctx.trimmer->sipkeys.k2, ctx.trimmer->sipkeys.k3);
+    //printf("nonce %d k0 k1 k2 k3 %llx %llx %llx %llx\n", nonce+r, ctx_pool[device_id]->trimmer->sipkeys.k0, ctx_pool[device_id]->trimmer->sipkeys.k1, ctx_pool[device_id]->trimmer->sipkeys.k2, ctx_pool[device_id]->trimmer->sipkeys.k3);
     u32 nsols = ctx_pool[device_id]->solve();
     for (unsigned s = 0; s < nsols; s++) {
       printf("Solution");

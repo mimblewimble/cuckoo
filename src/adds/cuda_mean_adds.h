@@ -33,7 +33,7 @@ u32 NUM_DEVICES=0;
 typedef class cudaDeviceInfo {
   public:
     int device_id;
-    int cuckoo_size;
+    unsigned int cuckoo_size;
     bool is_busy;
     cudaDeviceProp properties;
     //store the current hash rate
@@ -388,7 +388,7 @@ struct InternalWorkerArgs {
   unsigned int length;
   char data[MAX_DATA_LENGTH];
   unsigned char nonce[8];
-  unsigned char cuckoo_size;
+  unsigned int cuckoo_size;
   u32 device_id;
 };
 
@@ -425,6 +425,7 @@ void *process_internal_worker (void *vp) {
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
+		printf("%d%d%d%d\n", output.nonce[0], output.nonce[1], output.nonce[2], output.nonce[3]);
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     output.id = args->id;
     output.cuckoo_size = args->cuckoo_size;
