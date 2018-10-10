@@ -15,6 +15,7 @@ extern "C" int cuckoo_call(char* header_data,
                            unsigned int* cuckoo_size,
                            u32* sol_nonces){
 
+  u64 start_time=timestamp();
   if (SINGLE_MODE){
     should_quit=false;
   }
@@ -23,7 +24,6 @@ extern "C" int cuckoo_call(char* header_data,
   DEVICE_INFO.cuckoo_size = EDGEBITS;
   pthread_mutex_unlock (&device_info_mutex);
 
-  u64 start_time=timestamp();
   int nthreads = NUM_THREADS_PARAM;
   int ntrims   = 2 * (PART_BITS+3) * (PART_BITS+4);
   int nonce = 0;
@@ -75,7 +75,7 @@ extern "C" int cuckoo_call(char* header_data,
 
   thread_ctx *threads = new thread_ctx[nthreads];
   assert(threads);
-  cuckoo_ctx ctx(nthreads, NUM_TRIMS_PARAM, MAXSOLS);
+  cuckoo_ctx ctx(nthreads, nthreads, MAXSOLS);
 
   u32 sumnsols = 0;
   for (int r = 0; r < range; r++) {

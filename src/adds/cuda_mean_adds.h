@@ -425,7 +425,6 @@ void *process_internal_worker (void *vp) {
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
     memcpy(output.nonce, args->nonce, sizeof(output.nonce));
-		printf("%d%d%d%d\n", output.nonce[0], output.nonce[1], output.nonce[2], output.nonce[3]);
     //std::cout<<"Adding to queue "<<output.nonce<<std::endl;
     output.id = args->id;
     output.cuckoo_size = args->cuckoo_size;

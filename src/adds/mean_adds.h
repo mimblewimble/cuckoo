@@ -128,10 +128,10 @@ bool cuckoo_internal_ready_for_data(){
 }
 
 struct InternalWorkerArgs {
-  unsigned int id;
-  unsigned int length;
+  u32 id;
+  int length;
   char data[MAX_DATA_LENGTH];
-  unsigned int cuckoo_size;
+  u32 cuckoo_size;
   unsigned char nonce[8];
 };
 
@@ -177,8 +177,8 @@ int cuckoo_internal_process_data(unsigned int id, unsigned char* data, int data_
   memcpy(args.data, data, data_length);
   memcpy(args.nonce, nonce, sizeof(args.nonce));
   pthread_t internal_worker_thread;
+  //if (should_quit) return 1;
   is_working=true;
-  if (should_quit) return 1;
   pthread_mutex_lock (&device_info_mutex);
   DEVICE_INFO.is_busy=true;
   pthread_mutex_unlock(&device_info_mutex);

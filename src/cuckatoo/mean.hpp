@@ -357,6 +357,7 @@ public:
 #endif
     offset_t sumsize = 0;
     for (u32 my = starty; my < endy; my++, endedge += NYZ) {
+			if (should_quit) return;
       dst.matrixv(my);
 #ifdef NEEDSYNC
       for (u32 x=0; x < NX; x++)
@@ -526,6 +527,7 @@ public:
     for (u32 ux = startux; ux < endux; ux++) { // matrix x == ux
       small.matrixu(0);
       for (u32 my = 0 ; my < NY; my++) {
+				if (should_quit) return;
         u32 edge = my << YZBITS;
         u8    *readbig = buckets[ux][my].bytes;
         u8 const *endreadbig = readbig + buckets[ux][my].size;
@@ -701,6 +703,7 @@ public:
     for (u32 vx = startvx; vx < endvx; vx++) {
       small.matrixu(0);
       for (u32 ux = 0 ; ux < NX; ux++) {
+				if (should_quit) return;
         u32 uxyz = ux << YZBITS;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         const u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -774,8 +777,10 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+			if (should_quit) return;
       small.matrixu(0);
       for (u32 ux = 0 ; ux < NX; ux++) {
+				if (should_quit) return;
         u32 uyz = 0;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         const u8 *readbig = zb.bytes, *endreadbig = readbig + zb.size;
@@ -877,6 +882,7 @@ public:
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0, NYZ1);
       for (u32 ux = 0 ; ux < NX; ux++) {
+				if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbig = zb.words, *endreadbig = readbig + zb.size/sizeof(u32);
         // printf("id %d vx %d ux %d size %d\n", id, vx, ux, zb.size/SRCSIZE);
@@ -884,6 +890,7 @@ public:
           degs[*readbig & YZ1MASK] = sizeof(u32);
       }
       for (u32 ux = 0 ; ux < NX; ux++) {
+				if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbig = zb.words, *endreadbig = readbig + zb.size/sizeof(u32);
         for (; readbig < endreadbig; readbig++) {
@@ -1001,9 +1008,11 @@ public:
 #endif
   void trimmer(u32 id) {
     genUnodes(id, 0);
+    if (should_quit) return;
     barrier();
     genVnodes(id, 1);
     for (u32 round = 2; round < ntrims-2; round += 2) {
+      if (should_quit) return;
       barrier();
       if (round < COMPRESSROUND) {
         if (round < EXPANDROUND)
@@ -1014,6 +1023,7 @@ public:
       } else if (round==COMPRESSROUND) {
         trimrename<BIGGERSIZE, BIGGERSIZE, true>(id, round);
       } else trimedges1<true>(id, round);
+      if (should_quit) return;
       barrier();
       if (round < COMPRESSROUND) {
         if (round+1 < EXPANDROUND)
@@ -1025,8 +1035,10 @@ public:
         trimrename<BIGGERSIZE, sizeof(u32), false>(id, round+1);
       } else trimedges1<false>(id, round+1);
     }
+    if (should_quit) return;
     barrier();
     trimrename1<true >(id, ntrims-2);
+    if (should_quit) return;
     barrier();
     trimrename1<false>(id, ntrims-1);
   }
@@ -1079,6 +1091,10 @@ public:
   }
   void setheadernonce(char* const headernonce, const u32 len, const u32 nonce) {
     ((u32 *)headernonce)[len/sizeof(u32)-1] = htole32(nonce); // place nonce at end
+    setheader(headernonce, len, &trimmer.sip_keys);
+    sols.clear();
+  }
+  void setheadergrin(char* const headernonce, const u32 len) {
     setheader(headernonce, len, &trimmer.sip_keys);
     sols.clear();
   }

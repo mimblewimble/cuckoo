@@ -264,6 +264,7 @@ extern "C" void cuckoo_clear_queues(){
         INPUT_QUEUE.try_dequeue(in);
         OUTPUT_QUEUE.try_dequeue(out);
     }
+		//printf("CLEARING QUEUE DONE\n");
 		//should_quit=false;
 }
 
@@ -293,10 +294,10 @@ void *cuckoo_process(void *args) {
     }
     cuckoo_clear_queues();
     processing_finished=true;
+		pthread_exit(NULL);
 }
 
 extern "C" int cuckoo_start_processing() {
-    printf("Spawning cuckoo listener process\n");
     should_quit=false;
     processing_finished=false;
     pthread_t cuckoo_process_thread;
@@ -310,7 +311,6 @@ extern "C" int cuckoo_start_processing() {
 }
 
 extern "C" int cuckoo_stop_processing() {
-    printf("Quit signal received");
     //stop_processing_internal();
     should_quit=true;
     return 1;

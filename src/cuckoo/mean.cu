@@ -667,7 +667,7 @@ extern "C" int cuckoo_call(char* header_data,
                            u32* sol_nonces ) {
   trimparams tp;
   u64 start_time=timestamp();
-  *cuckoo_size = EDGEBITS + 1;
+  *cuckoo_size = EDGEBITS;
   u32 nonce = 0;
   u32 range = 1;
   u32 device = 0;

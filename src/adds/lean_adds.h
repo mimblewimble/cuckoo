@@ -149,9 +149,9 @@ void *process_internal_worker (void *vp) {
   InternalWorkerArgs* args = &internal_args;
   memcpy( &internal_args, vp, sizeof(InternalWorkerArgs) );
   u32 response[PROOFSIZE];
-
   u64 start_time=timestamp();
   int return_val=cuckoo_call(args->data, args->length, &args->cuckoo_size, response);
+  update_stats(start_time);
   if (return_val==1){
     QueueOutput output;
     memcpy(output.result_nonces, response, sizeof(output.result_nonces));
@@ -161,7 +161,6 @@ void *process_internal_worker (void *vp) {
     output.cuckoo_size = args->cuckoo_size;
     OUTPUT_QUEUE.enqueue(output);
   }
-  update_stats(start_time);
   is_working=false;
   internal_processing_finished=true;
   pthread_exit(NULL);

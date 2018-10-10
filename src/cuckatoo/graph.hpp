@@ -140,6 +140,7 @@ public:
   }
 
   void add_edge(word_t u, word_t v) {
+    if (should_quit) return;
     assert(u < MAXNODES);
     assert(v < MAXNODES);
     v += MAXNODES; // distinguish partitions
