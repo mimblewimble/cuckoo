@@ -55,7 +55,7 @@ typedef class cudaDeviceInfo {
 
 cudaDeviceInfo::cudaDeviceInfo(){
     device_id=-1;
-    cuckoo_size=EDGEBITS + 1;
+    cuckoo_size=EDGEBITS;
     is_busy=false;
     last_start_time=0;
     last_end_time=0;
