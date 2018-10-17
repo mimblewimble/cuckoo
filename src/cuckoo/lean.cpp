@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #ifdef __APPLE__
-#include "osx_barrier.h"
+#include "../apple/osx_barrier.h"
 #endif
 
 #include "../adds/lean_adds.h"
