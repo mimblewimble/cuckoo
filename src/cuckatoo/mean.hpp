@@ -926,6 +926,7 @@ public:
     const u32 startvx = NY *  id    / nthreads;
     const u32   endvx = NY * (id+1) / nthreads;
     for (u32 vx = startvx; vx < endvx; vx++) {
+			if (should_quit) return;
       TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
       memset(degs, 0, NYZ1);
       for (u32 ux = 0 ; ux < NX; ux++) {
@@ -939,6 +940,7 @@ public:
       u32 *renames = TRIMONV ? buckets[0][vx].renamev1 : buckets[vx][0].renameu1;
       u32 *endrenames = renames + NZ2/2;
       for (u32 ux = 0 ; ux < NX; ux++) {
+				if (should_quit) return;
         zbucket<ZBUCKETSIZE> &zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
         u32 *readbig = zb.words, *endreadbig = readbig + zb.size/sizeof(u32);
         for (; readbig < endreadbig; readbig++) {

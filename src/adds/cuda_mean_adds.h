@@ -92,14 +92,14 @@ void populate_device_info(){
   for (int i = 0; i < nDevices; i++) {
     DEVICE_INFO[i].device_id=i;
     cudaGetDeviceProperties(&DEVICE_INFO[i].properties, i);
-    printf("Device Number: %d\n", i);
+    /*printf("Device Number: %d\n", i);
     printf("  Device name: %s\n", DEVICE_INFO[i].properties.name);
     printf("  Memory Clock Rate (KHz): %d\n",
            DEVICE_INFO[i].properties.memoryClockRate);
     printf("  Memory Bus Width (bits): %d\n",
            DEVICE_INFO[i].properties.memoryBusWidth);
     printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
-           2.0*DEVICE_INFO[i].properties.memoryClockRate*(DEVICE_INFO[i].properties.memoryBusWidth/8)/1.0e6);
+           2.0*DEVICE_INFO[i].properties.memoryClockRate*(DEVICE_INFO[i].properties.memoryBusWidth/8)/1.0e6);*/
   }
   NUM_DEVICES=nDevices;
 }
