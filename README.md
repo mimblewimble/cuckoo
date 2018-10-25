@@ -1,3 +1,5 @@
+**This repository is now integrated directly into [grin-miner](https://github.com/mimblewimble/grin-miner) and obsolete**
+
 Cuck(at)oo Cycle
 ================
 
